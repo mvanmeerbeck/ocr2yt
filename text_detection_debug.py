@@ -127,8 +127,8 @@ def extract_text_with_ocr(image_region, method_name="", region_info=""):
         # Configuration Tesseract pour noms de joueurs
         configs = {
             "default": "--psm 8",
-            "single_word": "--psm 8 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-",
-            "strict": "--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+            "single_word": "--psm 8 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-:",
+            "strict": "--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-:",
             "lenient": "--psm 6",
         }
 
@@ -172,7 +172,7 @@ def extract_text_with_ocr(image_region, method_name="", region_info=""):
                             "confidence": avg_conf,
                             "length": len(text),
                             "clean_text": "".join(
-                                c for c in text if c.isalnum() or c in "_-"
+                                c for c in text if c.isalnum() or c in "_-:"
                             ),
                         }
                 except Exception as e:

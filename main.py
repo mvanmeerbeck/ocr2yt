@@ -286,12 +286,15 @@ def detect_and_extract_name_text(zone_image, zone_name):
 
         # NOUVEAU: OCR sur la région détectée
         if TESSERACT_AVAILABLE:
+            print(f"      -> Lancement OCR sur région {text_region.shape}...")
             detected_text = extract_text_with_ocr(text_region)
+            print(f"      -> OCR résultat brut: {repr(detected_text)}")
+
             if detected_text and detected_text != "OCR_ERROR":
-                print(f"      -> OCR: '{detected_text}'")
+                print(f"      -> OCR réussi: '{detected_text}'")
                 return detected_text
             else:
-                print(f"      -> OCR échoué")
+                print(f"      -> OCR échoué (résultat vide ou erreur)")
                 return f"text_detected_{w}x{h}"
         else:
             print(f"      -> Tesseract non disponible")
@@ -305,12 +308,20 @@ def extract_text_with_ocr(image_region):
     Extrait le texte d'une région avec OCR optimisé
     Basé sur les meilleurs résultats: original_strict et dilated_strict
     """
-    if not TESSERACT_AVAILABLE or image_region.size == 0:
+    print(f"        [OCR] Début extraction sur région {image_region.shape}")
+
+    if not TESSERACT_AVAILABLE:
+        print(f"        [OCR] ERREUR: Tesseract non disponible")
+        return None
+
+    if image_region.size == 0:
+        print(f"        [OCR] ERREUR: Région vide")
         return None
 
     try:
         # Configuration optimisée basée sur les tests
-        config = "--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        config = "--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-:"
+        print(f"        [OCR] Config: {config}")
 
         # Conversion en niveaux de gris
         gray = (
@@ -318,22 +329,27 @@ def extract_text_with_ocr(image_region):
             if len(image_region.shape) == 3
             else image_region
         )
+        print(f"        [OCR] Image convertie en gris: {gray.shape}")
 
         # Tester les 2 meilleures techniques
         techniques = {
             "original": gray,
             "dilated": cv2.dilate(gray, np.ones((2, 2), np.uint8), iterations=1),
         }
+        print(f"        [OCR] Test de {len(techniques)} techniques...")
 
         best_result = None
         best_confidence = 0
 
         for tech_name, processed_image in techniques.items():
             try:
+                print(f"        [OCR] Technique '{tech_name}'...")
+
                 # Extraire le texte
                 text = pytesseract.image_to_string(
                     processed_image, config=config
                 ).strip()
+                print(f"        [OCR] Texte brut '{tech_name}': '{text}'")
 
                 # Calculer la confiance
                 data = pytesseract.image_to_data(
@@ -341,9 +357,13 @@ def extract_text_with_ocr(image_region):
                 )
                 confidences = [int(c) for c in data["conf"] if int(c) > 0]
                 avg_confidence = np.mean(confidences) if confidences else 0
+                print(
+                    f"        [OCR] Confiance '{tech_name}': {avg_confidence:.1f}% ({len(confidences)} mots)"
+                )
 
                 # Nettoyer le texte
                 clean_text = "".join(c for c in text if c.isalnum() or c in "_-")
+                print(f"        [OCR] Texte nettoyé '{tech_name}': '{clean_text}'")
 
                 if (
                     clean_text
@@ -352,13 +372,21 @@ def extract_text_with_ocr(image_region):
                 ):
                     best_result = clean_text
                     best_confidence = avg_confidence
+                    print(
+                        f"        [OCR] Nouveau meilleur: '{clean_text}' ({avg_confidence:.1f}%)"
+                    )
 
-            except Exception:
+            except Exception as e:
+                print(f"        [OCR] ERREUR technique '{tech_name}': {e}")
                 continue
 
+        print(
+            f"        [OCR] Résultat final: '{best_result}' (confiance: {best_confidence:.1f}%)"
+        )
         return best_result if best_result else None
 
     except Exception as e:
+        print(f"        [OCR] ERREUR générale: {e}")
         return None
 
 
