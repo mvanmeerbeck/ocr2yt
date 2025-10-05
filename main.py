@@ -2,6 +2,14 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+try:
+    import pytesseract
+
+    TESSERACT_AVAILABLE = True
+except ImportError:
+    TESSERACT_AVAILABLE = False
+    print("⚠️  Tesseract non disponible - installez avec: pip install pytesseract")
+
 # Configuration des zones de détection (coordonnées relatives à la taille de l'image)
 GAME_ZONES = {
     # Zones pour le joueur 1 (gauche) - coordonnées en pourcentage (x, y, w, h)
@@ -102,7 +110,7 @@ def create_category_composites(template_categories, spacing=20):
             )
 
             # Sauvegarder le composite pour debug
-            debug_path = Path(f"./composite_{category_name}_debug.png")
+            debug_path = Path(f"./tmp/composite_{category_name}_debug.png")
             cv2.imwrite(str(debug_path), composite)
             print(f"  -> Sauvegardé: {debug_path}")
         else:
@@ -200,6 +208,160 @@ def find_zone_in_composite(
     return matches
 
 
+def detect_and_extract_name_text(zone_image, zone_name):
+    """
+    Détecte et extrait le texte d'un nom de joueur
+    Utilise la méthode 3 (Gradient morphologique) qui donne les meilleurs résultats
+    """
+    if zone_image.size == 0:
+        return None
+
+    # Conversion en niveaux de gris
+    gray = cv2.cvtColor(zone_image, cv2.COLOR_BGR2GRAY)
+
+    # MÉTHODE EAST TEXT DETECTION (meilleurs résultats OCR)
+    # Appliquer un flou pour réduire le bruit
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # Seuillage adaptatif avec paramètres optimisés
+    binary = cv2.adaptiveThreshold(
+        blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, 10
+    )
+
+    # Opérations morphologiques pour nettoyer
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    cleaned = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+
+    # Détection de contours pour trouver les boîtes de texte
+    contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    text_boxes = []
+    zone_h, zone_w = zone_image.shape[:2]
+
+    # Appliquer les filtres basic et medium qui donnent les meilleurs résultats
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+
+        # FILTRE BASIC: Plus permissif pour capturer plus de candidats
+        basic_filter = w > 10 and h > 5
+
+        # FILTRE MEDIUM: Équilibre entre précision et rappel
+        medium_filter = w > 15 and h > 8 and w / h > 1.2
+
+        # Utiliser le filtre medium en priorité, basic en fallback
+        if medium_filter:
+            text_boxes.append(("medium", x, y, w, h, w * h))
+        elif basic_filter:
+            text_boxes.append(("basic", x, y, w, h, w * h))
+
+    if not text_boxes:
+        print(f"      -> Aucune boîte de texte détectée dans {zone_name}")
+        return None
+
+    # Trier par qualité: medium d'abord, puis par taille
+    text_boxes.sort(key=lambda box: (box[0] == "medium", box[5]), reverse=True)
+
+    filter_type, x, y, w, h, area = text_boxes[0]
+
+    print(f"      -> Texte détecté avec filtre {filter_type}: {w}x{h} pixels")
+
+    # Extraire la région de texte avec un peu de padding
+    padding = 2
+    x_start = max(0, x - padding)
+    y_start = max(0, y - padding)
+    x_end = min(zone_image.shape[1], x + w + padding)
+    y_end = min(zone_image.shape[0], y + h + padding)
+
+    text_region = zone_image[y_start:y_end, x_start:x_end]
+
+    if text_region.size > 0:
+        # Sauvegarder la région de texte détectée pour debug
+        tmp_dir = Path("./tmp")
+        tmp_dir.mkdir(exist_ok=True)
+
+        debug_path = tmp_dir / f"detected_name_{zone_name}.png"
+        cv2.imwrite(str(debug_path), text_region)
+
+        print(f"      -> Région sauvée: {debug_path}")
+
+        # NOUVEAU: OCR sur la région détectée
+        if TESSERACT_AVAILABLE:
+            detected_text = extract_text_with_ocr(text_region)
+            if detected_text and detected_text != "OCR_ERROR":
+                print(f"      -> OCR: '{detected_text}'")
+                return detected_text
+            else:
+                print(f"      -> OCR échoué")
+                return f"text_detected_{w}x{h}"
+        else:
+            print(f"      -> Tesseract non disponible")
+            return f"text_detected_{w}x{h}"
+
+    return None
+
+
+def extract_text_with_ocr(image_region):
+    """
+    Extrait le texte d'une région avec OCR optimisé
+    Basé sur les meilleurs résultats: original_strict et dilated_strict
+    """
+    if not TESSERACT_AVAILABLE or image_region.size == 0:
+        return None
+
+    try:
+        # Configuration optimisée basée sur les tests
+        config = "--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+        # Conversion en niveaux de gris
+        gray = (
+            cv2.cvtColor(image_region, cv2.COLOR_BGR2GRAY)
+            if len(image_region.shape) == 3
+            else image_region
+        )
+
+        # Tester les 2 meilleures techniques
+        techniques = {
+            "original": gray,
+            "dilated": cv2.dilate(gray, np.ones((2, 2), np.uint8), iterations=1),
+        }
+
+        best_result = None
+        best_confidence = 0
+
+        for tech_name, processed_image in techniques.items():
+            try:
+                # Extraire le texte
+                text = pytesseract.image_to_string(
+                    processed_image, config=config
+                ).strip()
+
+                # Calculer la confiance
+                data = pytesseract.image_to_data(
+                    processed_image, config=config, output_type=pytesseract.Output.DICT
+                )
+                confidences = [int(c) for c in data["conf"] if int(c) > 0]
+                avg_confidence = np.mean(confidences) if confidences else 0
+
+                # Nettoyer le texte
+                clean_text = "".join(c for c in text if c.isalnum() or c in "_-")
+
+                if (
+                    clean_text
+                    and len(clean_text) >= 2
+                    and avg_confidence > best_confidence
+                ):
+                    best_result = clean_text
+                    best_confidence = avg_confidence
+
+            except Exception:
+                continue
+
+        return best_result if best_result else None
+
+    except Exception as e:
+        return None
+
+
 def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6):
     """
     Analyse un screenshot en utilisant l'approche par zones
@@ -225,6 +387,32 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
 
     # Analyser chaque zone
     for zone_name, zone_data in zones.items():
+        zone_image = zone_data["image"]
+
+        # TRAITEMENT SPÉCIAL POUR LES NOMS : Détection de texte seulement
+        if "name" in zone_name:
+            print(f"    Analyse zone NAME '{zone_name}' (détection de texte)")
+
+            # Sauvegarder la zone pour debug
+            tmp_dir = Path("./tmp")
+            tmp_dir.mkdir(exist_ok=True)
+            zone_debug_path = tmp_dir / f"debug_zone_{zone_name}.png"
+            cv2.imwrite(str(zone_debug_path), zone_image)
+
+            cv2.imshow(zone_name, zone_image)
+
+            # Détecter et extraire le texte
+            detected_name = detect_and_extract_name_text(zone_image, zone_name)
+
+            # Stocker le résultat
+            if "player1" in zone_name:
+                results["player1"]["name"] = detected_name
+            elif "player2" in zone_name:
+                results["player2"]["name"] = detected_name
+
+            continue
+
+        # TRAITEMENT NORMAL POUR LES AUTRES ZONES : Template matching
         if zone_name not in zone_to_category:
             continue
 
@@ -234,13 +422,14 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
             print(f"    Catégorie '{category}' non trouvée pour zone '{zone_name}'")
             continue
 
-        zone_image = zone_data["image"]
         composite, positions = category_composites[category]
 
         print(f"    Analyse zone '{zone_name}' (catégorie: {category})")
 
         # Sauvegarder la zone pour debug
-        zone_debug_path = Path(f"./debug_zone_{zone_name}.png")
+        tmp_dir = Path("./tmp")
+        tmp_dir.mkdir(exist_ok=True)
+        zone_debug_path = tmp_dir / f"debug_zone_{zone_name}.png"
         cv2.imwrite(str(zone_debug_path), zone_image)
 
         # Chercher cette zone dans le composite
