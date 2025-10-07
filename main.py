@@ -2,14 +2,6 @@ import cv2
 import numpy as np
 from pathlib import Path
 
-try:
-    import pytesseract
-
-    TESSERACT_AVAILABLE = True
-except ImportError:
-    TESSERACT_AVAILABLE = False
-    print("⚠️  Tesseract non disponible - installez avec: pip install pytesseract")
-
 # Configuration des zones de détection (coordonnées relatives à la taille de l'image)
 GAME_ZONES = {
     # Zones pour le joueur 1 (gauche) - coordonnées en pourcentage (x, y, w, h)
@@ -28,6 +20,10 @@ GAME_ZONES = {
 def load_templates_by_category(base_template_folder):
     """
     Charge les templates organisés par catégories dans des sous-dossiers
+    Supporte maintenant une structure hiérarchique pour les characters:
+    - characters/akuma/akuma-1.png, akuma-2.png
+    - ranks/master.png
+    - flags/fr.png
     """
     categories = {}
 
@@ -41,13 +37,38 @@ def load_templates_by_category(base_template_folder):
 
             print(f"Chargement de la catégorie: {category_name}")
 
-            for template_file in category_folder.iterdir():
-                if template_file.is_file():
-                    template_img = cv2.imread(str(template_file))
-                    if template_img is not None:
-                        template_name = template_file.stem
-                        templates_in_category.append((template_name, template_img))
-                        print(f"  - {template_name} chargé")
+            # Structure spéciale pour les characters (avec sous-dossiers par personnage)
+            if category_name == "characters":
+                for character_folder in category_folder.iterdir():
+                    if character_folder.is_dir():
+                        character_name = character_folder.name
+                        print(f"  Chargement du personnage: {character_name}")
+                        
+                        for template_file in character_folder.iterdir():
+                            if template_file.is_file() and template_file.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+                                template_img = cv2.imread(str(template_file))
+                                if template_img is not None:
+                                    # Utiliser le nom du personnage comme template_name
+                                    # (tous les templates d'un même personnage auront le même nom)
+                                    templates_in_category.append((character_name, template_img))
+                                    print(f"    - {template_file.name} chargé comme '{character_name}'")
+                    else:
+                        # Fichiers directement dans le dossier characters (ancien format)
+                        if character_folder.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+                            template_img = cv2.imread(str(character_folder))
+                            if template_img is not None:
+                                template_name = character_folder.stem
+                                templates_in_category.append((template_name, template_img))
+                                print(f"  - {template_name} chargé (format direct)")
+            else:
+                # Structure normale pour les autres catégories (ranks, flags, etc.)
+                for template_file in category_folder.iterdir():
+                    if template_file.is_file() and template_file.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+                        template_img = cv2.imread(str(template_file))
+                        if template_img is not None:
+                            template_name = template_file.stem
+                            templates_in_category.append((template_name, template_img))
+                            print(f"  - {template_name} chargé")
 
             if templates_in_category:
                 categories[category_name] = templates_in_category
@@ -170,10 +191,6 @@ def find_zone_in_composite(
 
     matches = []
 
-    print(
-        f"      Recherche zone {zone_image.shape} dans composite {composite_template.shape}"
-    )
-
     # VOTRE LOGIQUE: Chercher la zone extraite DANS le composite
     result = cv2.matchTemplate(composite_template, zone_image, cv2.TM_CCOEFF_NORMED)
 
@@ -186,10 +203,6 @@ def find_zone_in_composite(
         match_x, match_y = pt
         confidence = result[match_y, match_x]
 
-        print(
-            f"        Match trouvé à ({match_x}, {match_y}) avec confiance {confidence:.3f}"
-        )
-
         # Déterminer quel template correspond à cette position
         for template_name, temp_x, temp_y, temp_w, temp_h in template_positions:
             # Vérifier si le match est dans ce template
@@ -199,7 +212,6 @@ def find_zone_in_composite(
             ):
 
                 matches.append((template_name, confidence, (match_x, match_y)))
-                print(f"        -> Identifié comme template: {template_name}")
                 break
 
     # Trier par confiance et retourner le meilleur
@@ -212,7 +224,6 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
     """
     Analyse un screenshot en utilisant l'approche par zones
     """
-    print("  Extraction des zones du screenshot...")
     zones = extract_zones_from_screenshot(screenshot)
 
     results = {
@@ -247,8 +258,6 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
 
         composite, positions = category_composites[category]
 
-        print(f"    Analyse zone '{zone_name}' (catégorie: {category})")
-
         # Sauvegarder la zone pour debug
         tmp_dir = Path("./tmp")
         tmp_dir.mkdir(exist_ok=True)
@@ -261,8 +270,6 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
         if matches:
             best_match = matches[0]  # Meilleur match
             template_name, confidence, match_coords = best_match
-
-            print(f"      -> Trouvé: {template_name} (confiance: {confidence:.3f})")
 
             # Stocker le résultat selon la zone
             if "player1" in zone_name:
@@ -281,7 +288,7 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
                 elif "flag" in zone_name:
                     results["player2"]["flag"] = template_name
         else:
-            print(f"      -> Aucun match trouvé")
+            print("      -> Aucun match trouvé")
 
     return results, zones
 
@@ -401,7 +408,6 @@ def main():
             continue
 
         height, width = screenshot.shape[:2]
-        print(f"Dimensions: {width}x{height}")
 
         # NOUVELLE APPROCHE: Analyse par zones
         results, zones = analyze_screenshot_with_zones(
