@@ -354,7 +354,7 @@ def draw_zones_and_results(screenshot, zones, results):
 
 def main():
     # Chemins des dossiers
-    data_folder = Path("./data")
+    data_folder = Path("./data/thumbnails")
     template_base_folder = Path("./assets/templates")
 
     # Vérifications

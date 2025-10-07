@@ -370,10 +370,10 @@ def test_generic():
     # Images de test (on utilise les images originales ET les préprocessées)
     test_cases = [
         # Images originales
-        ("data/image1.png", None),  # None = reconnaissance libre
-        ("data/image2.png", None),
-        ("data/image3.png", None),
-        ("data/image4.png", None),
+        ("data/texts/image1.png", None),  # None = reconnaissance libre
+        ("data/texts/image2.png", None),
+        ("data/texts/image3.png", None),
+        ("data/texts/image4.png", None),
     ]
 
     for i, (test_image, expected) in enumerate(test_cases, 1):
