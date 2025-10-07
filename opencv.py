@@ -358,7 +358,7 @@ def test_generic():
     ocr = SimpleTemplateOCR()
 
     # Charger tous les templates disponibles
-    if not ocr.load_all_templates("assets/templates/texts"):
+    if not ocr.load_all_templates("assets/templates/names"):
         print("❌ Impossible de charger les templates")
         print("💡 Veuillez fournir des fichiers .png dans le dossier templates/")
         print("   Exemple: templates/N.png, templates/i.png, etc.")
