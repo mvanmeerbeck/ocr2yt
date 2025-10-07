@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from pathlib import Path
+from opencv import SimpleTemplateOCR  # Import de la classe OCR
 
 # Configuration des zones de détection (coordonnées relatives à la taille de l'image)
 GAME_ZONES = {
@@ -220,9 +221,10 @@ def find_zone_in_composite(
     return matches
 
 
-def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6):
+def analyze_screenshot_with_zones(screenshot, category_composites, ocr_systems=None, threshold=0.6):
     """
     Analyse un screenshot en utilisant l'approche par zones
+    Intègre maintenant l'OCR avec la classe SimpleTemplateOCR pour plusieurs catégories
     """
     zones = extract_zones_from_screenshot(screenshot)
 
@@ -242,9 +244,50 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
         "player2_flag": "flags",
     }
 
+    # Mappage zone -> catégorie OCR
+    zone_to_ocr_category = {
+        "player1_name": "names",
+        "player2_name": "names",
+        # Vous pouvez ajouter d'autres mappings ici :
+        # "some_mr_zone": "mr",
+        # "some_lp_zone": "lp",
+    }
+
     # Analyser chaque zone
     for zone_name, zone_data in zones.items():
         zone_image = zone_data["image"]
+
+        # TRAITEMENT SPÉCIAL POUR LES ZONES OCR
+        if zone_name in zone_to_ocr_category:
+            ocr_category = zone_to_ocr_category[zone_name]
+            
+            if ocr_systems and ocr_category in ocr_systems:
+                ocr_system = ocr_systems[ocr_category]
+                
+                # Sauvegarder temporairement la zone pour l'OCR
+                tmp_dir = Path("./tmp")
+                tmp_dir.mkdir(exist_ok=True)
+                temp_zone_path = tmp_dir / f"temp_ocr_{zone_name}.png"
+                cv2.imwrite(str(temp_zone_path), zone_image)
+                
+                # Utiliser la classe SimpleTemplateOCR exactement comme dans opencv.py
+                recognized_text = ocr_system.recognize_text(str(temp_zone_path), threshold=0.8)
+                
+                # Nettoyer le fichier temporaire
+                temp_zone_path.unlink(missing_ok=True)
+                
+                # Stocker le résultat selon la zone
+                if "player1" in zone_name:
+                    if "name" in zone_name:
+                        results["player1"]["name"] = recognized_text
+                elif "player2" in zone_name:
+                    if "name" in zone_name:
+                        results["player2"]["name"] = recognized_text
+                
+                print(f"    OCR {zone_name} ({ocr_category}): '{recognized_text}'")
+            else:
+                print(f"    {zone_name}: OCR non disponible (catégorie '{ocr_category}' manquante)")
+            continue
 
         # TRAITEMENT NORMAL POUR LES AUTRES ZONES : Template matching
         if zone_name not in zone_to_category:
@@ -287,6 +330,8 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
                     results["player2"]["rank"] = template_name
                 elif "flag" in zone_name:
                     results["player2"]["flag"] = template_name
+                    
+            print(f"    {zone_name}: {template_name} (confiance: {confidence:.3f})")
         else:
             print("      -> Aucun match trouvé")
 
@@ -389,6 +434,54 @@ def main():
 
     print(f"Catégories trouvées: {list(template_categories.keys())}")
 
+    # Initialiser les systèmes OCR avec SimpleTemplateOCR pour chaque catégorie
+    print("\n=== INITIALISATION DES SYSTÈMES OCR ===")
+    ocr_systems = {}  # Dictionnaire des systèmes OCR par catégorie
+    
+    # Catégories qui utilisent l'OCR
+    ocr_categories = ["names", "mr", "lp"]
+    
+    for ocr_category in ocr_categories:
+        ocr_folder = template_base_folder / ocr_category
+        if ocr_folder.exists():
+            print(f"Chargement OCR pour catégorie: {ocr_category}")
+            ocr_system = SimpleTemplateOCR()
+            if ocr_system.load_all_templates(str(ocr_folder)):
+                ocr_systems[ocr_category] = ocr_system
+                print(f"  ✅ {ocr_category}: {len(ocr_system.templates)} templates chargés")
+            else:
+                print(f"  ⚠️  Échec du chargement pour {ocr_category}")
+        else:
+            print(f"  ⚠️  Dossier OCR non trouvé: {ocr_folder}")
+    
+    if not ocr_systems:
+        print("⚠️  Aucun système OCR initialisé")
+        print("   Structure attendue:")
+        print("     assets/templates/names/a/a-1.png")
+        print("     assets/templates/mr/1/1-1.png")
+        print("     assets/templates/lp/H/H-1.png")
+    else:
+        print(f"✅ {len(ocr_systems)} système(s) OCR initialisé(s)")
+
+    # Supprimer l'ancien code OCR
+    # # Initialiser le système OCR avec SimpleTemplateOCR
+    # print("\n=== INITIALISATION DU SYSTÈME OCR ===")
+    # ocr_system = None
+    # if ocr_templates_folder.exists():
+    #     ocr_system = SimpleTemplateOCR()
+    #     if ocr_system.load_all_templates(str(ocr_templates_folder)):
+    #         print("✅ Système OCR initialisé avec succès")
+    #         print(f"   Templates chargés: {len(ocr_system.templates)}")
+    #     else:
+    #         print("⚠️  Échec du chargement des templates OCR")
+    #         ocr_system = None
+    # else:
+    #     print(f"⚠️  Dossier templates OCR non trouvé: {ocr_templates_folder}")
+    #     print("   Structure attendue:")
+    #     print("     templates/a/a-1.png")
+    #     print("     templates/colon/colon-1.png")
+    #     print("     etc.")
+
     # Créer les composites par catégorie
     print("\n=== CRÉATION DES COMPOSITES PAR CATÉGORIE ===")
     category_composites = create_category_composites(template_categories, spacing=15)
@@ -409,9 +502,9 @@ def main():
 
         height, width = screenshot.shape[:2]
 
-        # NOUVELLE APPROCHE: Analyse par zones
+        # NOUVELLE APPROCHE: Analyse par zones avec OCR multiple intégré
         results, zones = analyze_screenshot_with_zones(
-            screenshot, category_composites, threshold=0.6
+            screenshot, category_composites, ocr_systems, threshold=0.6
         )
 
         # Afficher les résultats

@@ -350,6 +350,75 @@ class SimpleTemplateOCR:
         # Sauvegarder
         cv2.imwrite(output_path, img)
 
+    def save_detected_letters(
+        self, image_path: str, threshold: float = 0.8
+    ):
+        """
+        Sauvegarde chaque lettre détectée dans des fichiers séparés.
+        
+        Args:
+            image_path: Chemin vers l'image source
+            threshold: Seuil de confiance
+        """
+        from pathlib import Path
+        
+        # Charger l'image
+        img = cv2.imread(image_path)
+        if img is None:
+            print(f"❌ Impossible de charger l'image: {image_path}")
+            return
+
+        # Obtenir le nom de l'image sans extension
+        image_name = Path(image_path).stem
+        
+        # Créer le dossier de debug pour cette image
+        debug_dir = Path("./debug") / image_name
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Trouver et filtrer les correspondances
+        matches = self.find_matches(image_path, threshold)
+        filtered_matches = self.filter_overlaps(matches)
+        
+        # Découper et sauvegarder chaque lettre
+        for i, (char, x, y, score) in enumerate(filtered_matches, 1):
+            if char in self.template_info:
+                template_info = self.template_info[char]
+                w, h = template_info["width"], template_info["height"]
+                
+                # Vérifier les limites de l'image
+                x_end = min(x + w, img.shape[1])
+                y_end = min(y + h, img.shape[0])
+                x_start = max(0, x)
+                y_start = max(0, y)
+                
+                # Découper la lettre
+                letter_crop = img[y_start:y_end, x_start:x_end]
+                
+                # Nom du fichier: zone1.png, zone2.png, etc.
+                letter_filename = debug_dir / f"zone{i}.png"
+                
+                # Sauvegarder la lettre
+                cv2.imwrite(str(letter_filename), letter_crop)
+            else:
+                print(f"  ⚠️  Zone {i}: caractère '{char}' ignoré (pas d'info template)")
+
+    def debug_visualization_with_letters(
+        self, image_path: str, output_path: str, threshold: float = 0.8
+    ):
+        """
+        Crée une image de debug avec les détections ET sauvegarde chaque lettre séparément.
+
+        Args:
+            image_path: Image source
+            output_path: Image de sortie avec annotations
+            threshold: Seuil de confiance
+        """
+        # Faire la visualisation debug classique
+        self.debug_visualization(image_path, output_path, threshold)
+        
+        # Sauvegarder chaque lettre séparément
+        self.save_detected_letters(image_path, threshold)
+
 
 def test_generic():
     """Test générique pour tous les templates disponibles."""
@@ -370,10 +439,8 @@ def test_generic():
     # Images de test (on utilise les images originales ET les préprocessées)
     test_cases = [
         # Images originales
-        ("data/texts/image1.png", None),  # None = reconnaissance libre
-        ("data/texts/image2.png", None),
-        ("data/texts/image3.png", None),
-        ("data/texts/image4.png", None),
+        ("data/texts/zone_preview_player1_name.png", None),  # None = reconnaissance libre
+        ("data/texts/zone_preview_player2_name.png", None),
     ]
 
     for i, (test_image, expected) in enumerate(test_cases, 1):
@@ -384,7 +451,7 @@ def test_generic():
             best_score_info = ""
 
             # Tester avec différents seuils
-            for threshold in [0.9]:
+            for threshold in [0.85]:
                 result = ocr.recognize_text(test_image, threshold)
 
                 if expected is None:
@@ -418,7 +485,8 @@ def test_generic():
             debug_path = (
                 f"debug/{os.path.basename(test_image).replace('.png', '_debug.png')}"
             )
-            ocr.debug_visualization(test_image, debug_path, debug_threshold)
+            # Utiliser la nouvelle méthode qui sauvegarde aussi les lettres individuellement
+            ocr.debug_visualization_with_letters(test_image, debug_path, debug_threshold)
 
         else:
             print(f"❌ Image de test non trouvée: {test_image}")
