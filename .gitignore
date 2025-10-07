@@ -1,6 +1,7 @@
 # Data files
 data
 tmp
+debug
 
 # Python
 __pycache__/
