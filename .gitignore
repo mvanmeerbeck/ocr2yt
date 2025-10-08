@@ -1,6 +1,7 @@
 # Data files
 tmp
 debug
+extracted_letters
 
 # Python
 __pycache__/

@@ -351,7 +351,7 @@ class SimpleTemplateOCR:
         cv2.imwrite(output_path, img)
 
     def save_detected_letters(
-        self, image_path: str, threshold: float = 0.8
+        self, image_path: str, threshold: float = 0.8, debug_folder_name: str = None
     ):
         """
         Sauvegarde chaque lettre détectée dans des fichiers séparés.
@@ -359,6 +359,7 @@ class SimpleTemplateOCR:
         Args:
             image_path: Chemin vers l'image source
             threshold: Seuil de confiance
+            debug_folder_name: Nom du dossier de debug (optionnel, sinon utilise le nom du dossier parent)
         """
         from pathlib import Path
         
@@ -368,11 +369,18 @@ class SimpleTemplateOCR:
             print(f"❌ Impossible de charger l'image: {image_path}")
             return
 
-        # Obtenir le nom de l'image sans extension
+        # Déterminer le nom du dossier de debug
+        if debug_folder_name:
+            folder_name = debug_folder_name
+        else:
+            # Utiliser le nom du dossier parent de l'image
+            folder_name = Path(image_path).parent.name
+        
+        # Obtenir le nom de l'image sans extension pour le sous-dossier
         image_name = Path(image_path).stem
         
-        # Créer le dossier de debug pour cette image
-        debug_dir = Path("./debug") / image_name
+        # Créer le dossier de debug: ./debug/folder_name/image_name/
+        debug_dir = Path("./debug") / folder_name / image_name
         debug_dir.mkdir(parents=True, exist_ok=True)
         
         # Trouver et filtrer les correspondances
@@ -403,21 +411,29 @@ class SimpleTemplateOCR:
                 print(f"  ⚠️  Zone {i}: caractère '{char}' ignoré (pas d'info template)")
 
     def debug_visualization_with_letters(
-        self, image_path: str, output_path: str, threshold: float = 0.8
+        self, image_path: str, output_path: str, threshold: float = 0.8, debug_folder_name: str = None
     ):
         """
         Crée une image de debug avec les détections ET sauvegarde chaque lettre séparément.
+        Génère aussi une copie de l'image originale sans annotations.
 
         Args:
             image_path: Image source
             output_path: Image de sortie avec annotations
             threshold: Seuil de confiance
+            debug_folder_name: Nom du dossier de debug (optionnel, sinon utilise le nom du dossier parent)
         """
-        # Faire la visualisation debug classique
+        # Faire la visualisation debug classique (avec boîtes)
         self.debug_visualization(image_path, output_path, threshold)
         
+        # Générer aussi une copie de l'image originale sans annotations
+        original_output_path = output_path.replace('_debug.png', '_original.png')
+        img_original = cv2.imread(image_path)
+        if img_original is not None:
+            cv2.imwrite(original_output_path, img_original)
+        
         # Sauvegarder chaque lettre séparément
-        self.save_detected_letters(image_path, threshold)
+        self.save_detected_letters(image_path, threshold, debug_folder_name)
 
 
 def test_generic():
@@ -436,60 +452,91 @@ def test_generic():
     # Créer le dossier debug
     os.makedirs("debug", exist_ok=True)
 
-    # Images de test (on utilise les images originales ET les préprocessées)
-    test_cases = [
-        # Images originales
-        ("data/texts/zone_preview_player1_name.png", None),  # None = reconnaissance libre
-        ("data/texts/zone_preview_player2_name.png", None),
-    ]
+    # Chercher tous les dossiers dans tmp qui contiennent des fichiers zone_preview
+    import glob
+    
+    # Trouver tous les dossiers tmp qui contiennent des fichiers zone_preview
+    pattern = "./tmp/*/zone_preview_player*_name.png"
+    files = glob.glob(pattern)
+    
+    # Extraire les dossiers uniques
+    folders = set()
+    for file_path in files:
+        folder = os.path.dirname(file_path)
+        folders.add(folder)
+    
+    folders = sorted(list(folders))  # Trier pour un ordre cohérent
+    
+    if not folders:
+        print("❌ Aucun dossier tmp avec des fichiers zone_preview trouvé")
+        return
+    
+    print(f"📁 Dossiers trouvés: {len(folders)}")
+    
+    # Première boucle : parcourir chaque dossier
+    for folder_path in folders:
+        folder_name = os.path.basename(folder_path)
+        print(folder_name)
+        
+        # Deuxième boucle : traiter les 2 fichiers dans ce dossier
+        target_files = [
+            "zone_preview_player1_name.png",
+            "zone_preview_player2_name.png"
+        ]
+        
+        for filename in target_files:
+            test_image = os.path.join(folder_path, filename)
+            
+            if os.path.exists(test_image):
+                player_num = "Player 1" if "player1" in filename else "Player 2"
+                print(f"{player_num}: ", end="")
+                
+                best_result = ""
+                best_threshold = 0
+                expected = None  # Mode reconnaissance libre
+                
+                # Tester avec différents seuils
+                for threshold in [0.90]:
+                    result = ocr.recognize_text(test_image, threshold)
 
-    for i, (test_image, expected) in enumerate(test_cases, 1):
-        if os.path.exists(test_image):
-
-            best_result = ""
-            best_threshold = 0
-            best_score_info = ""
-
-            # Tester avec différents seuils
-            for threshold in [0.85]:
-                result = ocr.recognize_text(test_image, threshold)
-
-                if expected is None:
-                    # Mode reconnaissance libre - on affiche tous les résultats
-                    # print(f"  Seuil {threshold}: '{result}'")
-                    if (
-                        result and not best_result
-                    ):  # Prendre le premier résultat non-vide
+                    if expected is None:
+                        # Mode reconnaissance libre - on affiche tous les résultats
+                        if (
+                            result and not best_result
+                        ):  # Prendre le premier résultat non-vide
+                            best_result = result
+                            best_threshold = threshold
+                    elif result == expected:
+                        print(f"🎉 PARFAIT avec seuil {threshold}!")
                         best_result = result
                         best_threshold = threshold
-                        best_score_info = f" (premier résultat non-vide)"
-                elif result == expected:
-                    print(f"🎉 PARFAIT avec seuil {threshold}!")
-                    best_result = result
-                    best_threshold = threshold
-                    best_score_info = " (match parfait)"
-                    break
-                else:
-                    pass  # print(f"  Seuil {threshold}: '{result}' ≠ '{expected}'")
+                        break
 
-            if expected is None:
-                if best_result:
-                    print(f"{os.path.basename(test_image)}: {best_result}")
-                else:
-                    print("⚠️  Aucun texte détecté")
-            elif not best_result or best_result != expected:
-                print("⚠️  Aucun seuil ne donne le résultat attendu")
+                if expected is None:
+                    if best_result:
+                        print(f"{best_result}")
+                    else:
+                        print("⚠️  Aucun texte détecté")
+                elif not best_result or best_result != expected:
+                    print("⚠️  Aucun seuil ne donne le résultat attendu")
 
-            # Créer une image de debug avec le meilleur seuil (ou 0.8 par défaut)
-            debug_threshold = best_threshold if best_threshold > 0 else 0.8
-            debug_path = (
-                f"debug/{os.path.basename(test_image).replace('.png', '_debug.png')}"
-            )
-            # Utiliser la nouvelle méthode qui sauvegarde aussi les lettres individuellement
-            ocr.debug_visualization_with_letters(test_image, debug_path, debug_threshold)
-
-        else:
-            print(f"❌ Image de test non trouvée: {test_image}")
+                # Créer une image de debug avec le meilleur seuil (ou 0.8 par défaut)
+                debug_threshold = best_threshold if best_threshold > 0 else 0.8
+                
+                # Créer le dossier debug pour ce dossier d'origine
+                debug_folder_path = f"debug/{folder_name}"
+                os.makedirs(debug_folder_path, exist_ok=True)
+                
+                debug_path = (
+                    f"{debug_folder_path}/{os.path.basename(test_image).replace('.png', '_debug.png')}"
+                )
+                # Utiliser la nouvelle méthode qui sauvegarde aussi les lettres individuellement
+                # avec le nom du dossier pour regrouper par dossier d'origine
+                ocr.debug_visualization_with_letters(test_image, debug_path, debug_threshold, folder_name)
+            
+            else:
+                player_num = "Player 1" if "player1" in filename else "Player 2"
+                print(f"  📄 {player_num}: ❌ Fichier non trouvé")
 
 
 if __name__ == "__main__":
