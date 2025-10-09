@@ -4,6 +4,7 @@ from pathlib import Path
 import pytesseract
 import os
 import re
+import json
 
 # Configuration des zones de détection (coordonnées relatives à la taille de l'image)
 GAME_ZONES = {
@@ -552,6 +553,82 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
     return results, zones
 
 
+def extract_video_id_from_filename(filename):
+    """
+    Extrait l'ID de la vidéo à partir du nom de fichier.
+    Supporte différents formats: video_id.ext, video_id_suffix.ext, etc.
+    
+    Args:
+        filename: Nom du fichier (avec ou sans extension)
+    
+    Returns:
+        ID de la vidéo (string)
+    """
+    # Supprimer l'extension
+    name_without_ext = Path(filename).stem
+    
+    # Pour les fichiers YouTube, l'ID peut contenir des underscores
+    # Exemples: 
+    # - "Kz8a9hm_DZU.jpg" -> "Kz8a9hm_DZU"
+    # - "simple_video.jpg" -> "simple_video"
+    # - "abc123.jpg" -> "abc123"
+    
+    # On garde le nom complet sans extension comme ID vidéo
+    video_id = name_without_ext
+    
+    return video_id
+
+
+def save_metadata_to_json(results, zones, video_id, screenshot_info, output_dir="./metadata"):
+    """
+    Sauvegarde les résultats de détection en format JSON.
+    
+    Args:
+        results: Dictionnaire des résultats de détection
+        zones: Informations sur les zones extraites
+        video_id: ID de la vidéo
+        screenshot_info: Informations sur le screenshot (chemin, dimensions)
+        output_dir: Dossier de sortie pour les métadonnées
+    """
+    # Créer le dossier metadata s'il n'existe pas
+    metadata_dir = Path(output_dir)
+    metadata_dir.mkdir(exist_ok=True)
+    
+    # Préparer les métadonnées dans le format demandé
+    metadata = {
+        "id": video_id,
+        "players": [
+            {
+                "name": results.get("player1", {}).get("name"),
+                "character": results.get("player1", {}).get("character"),
+                "rank": results.get("player1", {}).get("rank"),
+                "flag": results.get("player1", {}).get("flag")
+            },
+            {
+                "name": results.get("player2", {}).get("name"),
+                "character": results.get("player2", {}).get("character"),
+                "rank": results.get("player2", {}).get("rank"),
+                "flag": results.get("player2", {}).get("flag")
+            }
+        ]
+    }
+    
+    # Chemin de sortie
+    output_file = metadata_dir / f"{video_id}.json"
+    
+    # Sauvegarder en JSON
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        
+        print(f"    💾 Métadonnées sauvegardées: {output_file}")
+        return str(output_file)
+        
+    except Exception as e:
+        print(f"    ❌ Erreur lors de la sauvegarde des métadonnées: {e}")
+        return None
+
+
 def draw_zones_and_results(screenshot, zones, results):
     """
     Dessine les zones extraites et les résultats sur le screenshot
@@ -667,6 +744,18 @@ def main():
             continue
 
         height, width = screenshot.shape[:2]
+        
+        # Extraire l'ID de la vidéo à partir du nom de fichier
+        video_id = extract_video_id_from_filename(file_path.name)
+        print(f"    ID vidéo extrait: {video_id}")
+        
+        # Préparer les informations sur le screenshot
+        screenshot_info = {
+            "filename": file_path.name,
+            "width": width,
+            "height": height,
+            "file_size": file_path.stat().st_size if file_path.exists() else 0
+        }
 
         # NOUVELLE APPROCHE: Analyse par zones avec OCR multiple intégré
         results, zones = analyze_screenshot_with_zones(
@@ -680,6 +769,9 @@ def main():
                 print(f"  {player.upper()}:")
                 for key, value in info.items():
                     print(f"    - {key}: {value or 'Non détecté'}")
+        
+        # Sauvegarder les métadonnées en JSON
+        metadata_file = save_metadata_to_json(results, zones, video_id, screenshot_info)
 
         # Dessiner et afficher
         result_image = draw_zones_and_results(screenshot, zones, results)
