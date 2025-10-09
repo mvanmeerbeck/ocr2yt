@@ -155,27 +155,13 @@ def color_based_letter_detector(image_path, output_dir, sample_colors_dir=None):
     # Convertir BGR vers RGB pour correspondre aux couleurs données
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     
-    # Obtenir les couleurs des lettres
-    if sample_colors_dir and os.path.exists(sample_colors_dir):
-        letter_colors = extract_letter_colors_from_samples(sample_colors_dir)
-        if not letter_colors:
-            print("⚠️  Aucune couleur extraite, utilisation des couleurs par défaut")
-            letter_colors = [
-                (213, 212, 220),
-                (215, 212, 239),
-                (225, 228, 233),
-                (197, 201, 230),
-                (238, 227, 243)
-            ]
-    else:
-        # Couleurs par défaut si pas d'échantillons
-        letter_colors = [
-            (213, 212, 220),
-            (215, 212, 239),
-            (225, 228, 233),
-            (197, 201, 230),
-            (238, 227, 243)
-        ]
+    letter_colors = [
+        (213, 212, 220),
+        (215, 212, 239),
+        (225, 228, 233),
+        (197, 201, 230),
+        (238, 227, 243)
+    ]
     
     # Créer un masque pour détecter toutes les couleurs de lettres
     height, width = img_rgb.shape[:2]
@@ -313,16 +299,6 @@ def color_based_letter_detector(image_path, output_dir, sample_colors_dir=None):
     
     colored_debug_path = os.path.join(output_dir, "colors_detected_debug.png")
     cv2.imwrite(colored_debug_path, colored_mask)
-    
-    return letters_saved
-    # Charger l'image
-    img = cv2.imread(image_path)
-    if img is None:
-        print(f"❌ Impossible de charger l'image: {image_path}")
-        return 0
-
-    
-    letters_saved = 0
     
     return letters_saved
 

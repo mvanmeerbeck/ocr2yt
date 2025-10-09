@@ -1,7 +1,9 @@
 import cv2
 import numpy as np
 from pathlib import Path
-from opencv import SimpleTemplateOCR  # Import de la classe OCR
+import pytesseract
+import os
+import re
 
 # Configuration des zones de détection (coordonnées relatives à la taille de l'image)
 GAME_ZONES = {
@@ -9,12 +11,12 @@ GAME_ZONES = {
     "player1_character": (0.05, 0.755, 0.23, 0.06),  # Zone character joueur 1
     "player1_rank": (0.02, 0.82, 0.085, 0.09),  # Zone rank joueur 1
     "player1_flag": (0.12, 0.84, 0.028, 0.034),  # Zone drapeau joueur 1
-    "player1_name": (0.17, 0.84, 0.18, 0.038),  # Zone nom joueur 1
+    "player1_name": (0.17, 0.84, 0.10, 0.038),  # Zone nom joueur 1
     # Zones pour le joueur 2 (droite) - coordonnées en pourcentage
     "player2_character": (0.72, 0.755, 0.23, 0.06),  # Zone character joueur 2
     "player2_rank": (0.892, 0.82, 0.085, 0.09),  # Zone rank joueur 2
     "player2_flag": (0.652, 0.84, 0.028, 0.034),  # Zone drapeau joueur 2
-    "player2_name": (0.702, 0.84, 0.18, 0.038),  # Zone nom joueur 2
+    "player2_name": (0.702, 0.84, 0.10, 0.038),  # Zone nom joueur 2
 }
 
 
@@ -141,6 +143,244 @@ def create_category_composites(template_categories, spacing=20):
     return category_composites
 
 
+def detect_text_with_tesseract(image_path, debug_mode=True):
+    """
+    Détecte le texte dans une image en utilisant Tesseract OCR avec debug détaillé.
+    
+    Args:
+        image_path: Chemin vers l'image à analyser
+        debug_mode: Active le mode debug avec sauvegarde des étapes
+    
+    Returns:
+        Texte détecté (string)
+    """
+    try:
+        # Charger l'image
+        img = cv2.imread(image_path)
+        if img is None:
+            return "Erreur: Impossible de charger l'image"
+        
+        # Préparer le dossier de debug
+        debug_dir = None
+        if debug_mode:
+            debug_dir = os.path.dirname(image_path)
+            base_name = os.path.splitext(os.path.basename(image_path))[0]
+        
+        # Convertir en niveaux de gris si nécessaire
+        if len(img.shape) == 3:
+            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            img_gray = img
+        
+        if debug_mode:
+            cv2.imwrite(os.path.join(debug_dir, f"{base_name}_1_grayscale.png"), img_gray)
+        
+        # Améliorer l'image pour l'OCR
+        # Appliquer un seuillage pour avoir du texte noir sur fond blanc
+        _, img_thresh = cv2.threshold(img_gray, 127, 255, cv2.THRESH_BINARY)
+        
+        if debug_mode:
+            cv2.imwrite(os.path.join(debug_dir, f"{base_name}_2_threshold.png"), img_thresh)
+        
+        # Inverser si nécessaire (Tesseract fonctionne mieux avec texte noir sur fond blanc)
+        # Compter les pixels blancs vs noirs pour décider
+        white_pixels = np.sum(img_thresh == 255)
+        black_pixels = np.sum(img_thresh == 0)
+        
+        inverted = False
+        if black_pixels > white_pixels:
+            # Plus de pixels noirs que blancs, probablement texte blanc sur fond noir
+            img_thresh = cv2.bitwise_not(img_thresh)
+            inverted = True
+        
+        # Épaisissement du texte noir (utiliser erode, pas dilate !)
+        img_thresh = cv2.erode(img_thresh, np.ones((3, 3), np.uint8), iterations=1)
+        
+        # Créer plusieurs versions de l'image pour maximiser les chances
+        images_to_test = []
+        
+        # 1. Image originale (après épaisissement)
+        images_to_test.append(("original", img_thresh))
+        
+        if debug_mode:
+            for name, img_test in images_to_test:
+                cv2.imwrite(os.path.join(debug_dir, f"{base_name}_test_{name}.png"), img_test)
+        
+        # Tester TOUTES les configurations sur TOUTES les images
+        configurations = [
+            ("psm7_oem1", r'--oem 1 --psm 7'), 
+        ]
+        
+        results = []
+        best_text = ""
+        best_config = ""
+        best_image_type = ""
+        
+        # Tester CHAQUE configuration sur CHAQUE image
+        for img_name, test_img in images_to_test:
+            for config_name, config in configurations:
+                try:
+                    full_test_name = f"{config_name}_{img_name}"
+                    text = pytesseract.image_to_string(test_img, config=config).strip()
+                    
+                    # Nettoyer le texte
+                    if text:
+                        text = text.replace('\n', ' ').replace('\t', ' ')
+                        text = re.sub(r'\s+', ' ', text).strip()
+                    
+                    results.append((full_test_name, config, text, len(text)))
+                    
+                    # Choisir le meilleur résultat (le plus long non vide)
+                    if len(text) > len(best_text):
+                        best_text = text
+                        best_config = full_test_name
+                        best_image_type = img_name
+                        
+                    if debug_mode:
+                        print(f"    {full_test_name}: '{text}' (longueur: {len(text)})")
+                        
+                except Exception as e:
+                    full_test_name = f"{config_name}_{img_name}"
+                    results.append((full_test_name, config, f"Erreur: {str(e)}", 0))
+                    if debug_mode:
+                        print(f"    {full_test_name}: ERREUR - {str(e)}")
+        
+        # Sauvegarder les résultats de debug
+        if debug_mode:
+            debug_file = os.path.join(debug_dir, f"{base_name}_tesseract_debug.txt")
+            with open(debug_file, 'w', encoding='utf-8') as f:
+                f.write(f"=== DEBUG TESSERACT ===\n")
+                f.write(f"Image source: {image_path}\n")
+                f.write(f"Dimensions: {img.shape}\n")
+                f.write(f"Pixels blancs: {white_pixels}, noirs: {black_pixels}\n")
+                f.write(f"Image inversée: {inverted}\n")
+                f.write(f"Meilleure config: {best_config}\n")
+                f.write(f"Meilleur résultat: '{best_text}'\n\n")
+                
+                f.write("=== TOUS LES RÉSULTATS ===\n")
+                for config_name, config, text, length in results:
+                    f.write(f"{config_name}: '{text}' (longueur: {length})\n")
+                    f.write(f"  Config: {config}\n\n")
+            
+            print(f"    Debug sauvegardé: {debug_file}")
+        
+        return best_text if best_text else "Aucun texte détecté"
+        
+    except Exception as e:
+        return f"Erreur Tesseract: {str(e)}"
+
+
+def color_based_name_detector(zone_image, zone_name, debug_dir=None):
+    """
+    Détecte le nom d'un joueur en utilisant la détection de couleur spécifique aux lettres.
+    Adapté de generate_templates.py pour être intégré dans main.py
+    
+    Args:
+        zone_image: Image de la zone nom extraite
+        zone_name: Nom de la zone (pour debug)
+        debug_dir: Dossier pour sauvegarder les fichiers de debug
+    
+    Returns:
+        Texte détecté (string)
+    """
+    if zone_image is None:
+        return "Erreur: Image vide"
+    
+    # Convertir BGR vers RGB pour correspondre aux couleurs données
+    img_rgb = cv2.cvtColor(zone_image, cv2.COLOR_BGR2RGB)
+    
+    # Couleurs spécifiques aux lettres des noms (adaptées du fichier generate_templates.py)
+    letter_colors = [
+        (213, 212, 220),
+        (215, 212, 239),
+        (225, 228, 233),
+        (197, 201, 230),
+        (238, 227, 243),
+        (183, 187, 212),
+        (183, 189, 213),
+        (210, 182, 197),
+        (199, 175, 189),
+        (212, 188, 202)
+    ]
+    
+    # Créer un masque pour détecter toutes les couleurs de lettres
+    height, width = img_rgb.shape[:2]
+    letter_mask = np.zeros((height, width), dtype=np.uint8)
+    
+    # Tolérance pour la détection de couleur
+    tolerance = 15
+    
+    for color in letter_colors:
+        # Créer un masque pour cette couleur spécifique
+        lower_bound = np.array([max(0, c - tolerance) for c in color], dtype=np.uint8)
+        upper_bound = np.array([min(255, c + tolerance) for c in color], dtype=np.uint8)
+        
+        # Détecter les pixels de cette couleur
+        color_mask = cv2.inRange(img_rgb, lower_bound, upper_bound)
+        
+        # Ajouter au masque global
+        letter_mask = cv2.bitwise_or(letter_mask, color_mask)
+    
+    # Sauvegarder le masque de debug si un dossier est fourni
+    if debug_dir:
+        os.makedirs(debug_dir, exist_ok=True)
+        mask_debug_path = os.path.join(debug_dir, f"{zone_name}_color_mask_debug.png")
+        cv2.imwrite(mask_debug_path, letter_mask)
+        
+        # Sauvegarder aussi l'image originale de la zone pour debug
+        zone_debug_path = os.path.join(debug_dir, f"{zone_name}_original_zone.png")
+        cv2.imwrite(zone_debug_path, zone_image)
+        
+        print(f"    🔍 Debug détaillé pour {zone_name}...")
+        
+        # Tester la détection sur le masque de couleur
+        print("    Test 1: Masque de couleur")
+        detected_text_mask = detect_text_with_tesseract(mask_debug_path, debug_mode=True)
+        
+        # Comparer les deux résultats
+        print(f"    Masque couleur: '{detected_text_mask}'")
+
+        detected_text = detected_text_mask
+        best_method = "masque de couleur"
+        
+        # Sauvegarder le résumé de tous les tests
+        summary_path = os.path.join(debug_dir, f"{zone_name}_detection_summary.txt")
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            f.write("=== RÉSUMÉ DÉTECTION DE TEXTE ===\n")
+            f.write(f"Zone: {zone_name}\n")
+            f.write(f"Meilleure méthode: {best_method}\n")
+            f.write(f"Résultat final: '{detected_text}'\n\n")
+            f.write(f"Résultat masque couleur: '{detected_text_mask}'\n")
+            
+            # Analyser le masque de couleur
+            mask_pixels = np.sum(letter_mask > 0)
+            total_pixels = letter_mask.shape[0] * letter_mask.shape[1]
+            coverage = (mask_pixels / total_pixels) * 100
+            
+            f.write(f"=== ANALYSE MASQUE COULEUR ===\n")
+            f.write(f"Pixels détectés: {mask_pixels} / {total_pixels}\n")
+            f.write(f"Couverture: {coverage:.1f}%\n")
+            f.write(f"Couleurs cherchées: {letter_colors}\n")
+            f.write(f"Tolérance: {tolerance}\n")
+            
+            if coverage < 5:
+                f.write("⚠️  PROBLÈME: Très peu de pixels détectés par le masque couleur!\n")
+                f.write("   Les couleurs de détection sont peut-être incorrectes.\n")
+            elif coverage > 50:
+                f.write("⚠️  PROBLÈME: Trop de pixels détectés par le masque couleur!\n") 
+                f.write("   La tolérance est peut-être trop élevée.\n")
+        
+        return detected_text
+    else:
+        # Si pas de debug, créer un fichier temporaire pour Tesseract
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+            cv2.imwrite(tmp_file.name, letter_mask)
+            detected_text = detect_text_with_tesseract(tmp_file.name)
+            os.unlink(tmp_file.name)  # Supprimer le fichier temporaire
+            return detected_text
+
+
 def extract_zones_from_screenshot(screenshot):
     """
     Extrait les zones définies du screenshot
@@ -221,7 +461,7 @@ def find_zone_in_composite(
     return matches
 
 
-def analyze_screenshot_with_zones(screenshot, category_composites, ocr_systems=None, threshold=0.6):
+def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6):
     """
     Analyse un screenshot en utilisant l'approche par zones
     Intègre maintenant l'OCR avec la classe SimpleTemplateOCR pour plusieurs catégories
@@ -242,68 +482,42 @@ def analyze_screenshot_with_zones(screenshot, category_composites, ocr_systems=N
         "player2_rank": "ranks",
         "player1_flag": "flags",
         "player2_flag": "flags",
-    }
-
-    # Mappage zone -> catégorie OCR
-    zone_to_ocr_category = {
         "player1_name": "names",
         "player2_name": "names",
-        # Vous pouvez ajouter d'autres mappings ici :
-        # "some_mr_zone": "mr",
-        # "some_lp_zone": "lp",
     }
+
+    # Créer le dossier de debug
+    tmp_dir = Path("./tmp")
+    tmp_dir.mkdir(exist_ok=True)
 
     # Analyser chaque zone
     for zone_name, zone_data in zones.items():
         zone_image = zone_data["image"]
-
-        # TRAITEMENT SPÉCIAL POUR LES ZONES OCR
-        if zone_name in zone_to_ocr_category:
-            ocr_category = zone_to_ocr_category[zone_name]
+        
+        # Traitement spécial pour les zones de noms avec détection de couleur
+        if "name" in zone_name:
+            print(f"    {zone_name}: Utilisation de la détection de couleur...")
+            detected_name = color_based_name_detector(zone_image, zone_name, debug_dir=str(tmp_dir))
             
-            if ocr_systems and ocr_category in ocr_systems:
-                ocr_system = ocr_systems[ocr_category]
+            # Stocker le résultat selon la zone
+            if "player1" in zone_name:
+                results["player1"]["name"] = detected_name
+            elif "player2" in zone_name:
+                results["player2"]["name"] = detected_name
                 
-                # Sauvegarder temporairement la zone pour l'OCR
-                tmp_dir = Path("./tmp")
-                tmp_dir.mkdir(exist_ok=True)
-                temp_zone_path = tmp_dir / f"temp_ocr_{zone_name}.png"
-                cv2.imwrite(str(temp_zone_path), zone_image)
-                
-                # Utiliser la classe SimpleTemplateOCR exactement comme dans opencv.py
-                recognized_text = ocr_system.recognize_text(str(temp_zone_path), threshold=0.8)
-                
-                # Nettoyer le fichier temporaire
-                temp_zone_path.unlink(missing_ok=True)
-                
-                # Stocker le résultat selon la zone
-                if "player1" in zone_name:
-                    if "name" in zone_name:
-                        results["player1"]["name"] = recognized_text
-                elif "player2" in zone_name:
-                    if "name" in zone_name:
-                        results["player2"]["name"] = recognized_text
-                
-                print(f"    OCR {zone_name} ({ocr_category}): '{recognized_text}'")
-            else:
-                print(f"    {zone_name}: OCR non disponible (catégorie '{ocr_category}' manquante)")
+            print(f"    {zone_name}: '{detected_name}' (détection couleur + Tesseract)")
             continue
-
-        # TRAITEMENT NORMAL POUR LES AUTRES ZONES : Template matching
-        if zone_name not in zone_to_category:
-            continue
-
-        category = zone_to_category[zone_name]
-
-        if category not in category_composites:
+        
+        # Traitement normal pour les autres zones
+        category = zone_to_category.get(zone_name)
+        
+        if not category or category not in category_composites:
             print(f"    Catégorie '{category}' non trouvée pour zone '{zone_name}'")
             continue
 
         composite, positions = category_composites[category]
 
         # Sauvegarder la zone pour debug
-        tmp_dir = Path("./tmp")
-        tmp_dir.mkdir(exist_ok=True)
         zone_debug_path = tmp_dir / f"debug_zone_{zone_name}.png"
         cv2.imwrite(str(zone_debug_path), zone_image)
 
@@ -330,7 +544,7 @@ def analyze_screenshot_with_zones(screenshot, category_composites, ocr_systems=N
                     results["player2"]["rank"] = template_name
                 elif "flag" in zone_name:
                     results["player2"]["flag"] = template_name
-                    
+
             print(f"    {zone_name}: {template_name} (confiance: {confidence:.3f})")
         else:
             print("      -> Aucun match trouvé")
@@ -434,54 +648,6 @@ def main():
 
     print(f"Catégories trouvées: {list(template_categories.keys())}")
 
-    # Initialiser les systèmes OCR avec SimpleTemplateOCR pour chaque catégorie
-    print("\n=== INITIALISATION DES SYSTÈMES OCR ===")
-    ocr_systems = {}  # Dictionnaire des systèmes OCR par catégorie
-    
-    # Catégories qui utilisent l'OCR
-    ocr_categories = ["names", "mr", "lp"]
-    
-    for ocr_category in ocr_categories:
-        ocr_folder = template_base_folder / ocr_category
-        if ocr_folder.exists():
-            print(f"Chargement OCR pour catégorie: {ocr_category}")
-            ocr_system = SimpleTemplateOCR()
-            if ocr_system.load_all_templates(str(ocr_folder)):
-                ocr_systems[ocr_category] = ocr_system
-                print(f"  ✅ {ocr_category}: {len(ocr_system.templates)} templates chargés")
-            else:
-                print(f"  ⚠️  Échec du chargement pour {ocr_category}")
-        else:
-            print(f"  ⚠️  Dossier OCR non trouvé: {ocr_folder}")
-    
-    if not ocr_systems:
-        print("⚠️  Aucun système OCR initialisé")
-        print("   Structure attendue:")
-        print("     assets/templates/names/a/a-1.png")
-        print("     assets/templates/mr/1/1-1.png")
-        print("     assets/templates/lp/H/H-1.png")
-    else:
-        print(f"✅ {len(ocr_systems)} système(s) OCR initialisé(s)")
-
-    # Supprimer l'ancien code OCR
-    # # Initialiser le système OCR avec SimpleTemplateOCR
-    # print("\n=== INITIALISATION DU SYSTÈME OCR ===")
-    # ocr_system = None
-    # if ocr_templates_folder.exists():
-    #     ocr_system = SimpleTemplateOCR()
-    #     if ocr_system.load_all_templates(str(ocr_templates_folder)):
-    #         print("✅ Système OCR initialisé avec succès")
-    #         print(f"   Templates chargés: {len(ocr_system.templates)}")
-    #     else:
-    #         print("⚠️  Échec du chargement des templates OCR")
-    #         ocr_system = None
-    # else:
-    #     print(f"⚠️  Dossier templates OCR non trouvé: {ocr_templates_folder}")
-    #     print("   Structure attendue:")
-    #     print("     templates/a/a-1.png")
-    #     print("     templates/colon/colon-1.png")
-    #     print("     etc.")
-
     # Créer les composites par catégorie
     print("\n=== CRÉATION DES COMPOSITES PAR CATÉGORIE ===")
     category_composites = create_category_composites(template_categories, spacing=15)
@@ -504,7 +670,7 @@ def main():
 
         # NOUVELLE APPROCHE: Analyse par zones avec OCR multiple intégré
         results, zones = analyze_screenshot_with_zones(
-            screenshot, category_composites, ocr_systems, threshold=0.6
+            screenshot, category_composites, threshold=0.6
         )
 
         # Afficher les résultats

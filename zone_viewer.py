@@ -7,12 +7,12 @@ GAME_ZONES = {
     "player1_character": (0.05, 0.755, 0.23, 0.06),  # Zone character joueur 1
     "player1_rank": (0.02, 0.82, 0.085, 0.09),  # Zone rank joueur 1
     "player1_flag": (0.12, 0.84, 0.028, 0.034),  # Zone drapeau joueur 1
-    "player1_name": (0.17, 0.84, 0.18, 0.038),  # Zone nom joueur 1
+    "player1_name": (0.17, 0.84, 0.10, 0.038),  # Zone nom joueur 1
     # Zones pour le joueur 2 (droite) - coordonnées en pourcentage
     "player2_character": (0.72, 0.755, 0.23, 0.06),  # Zone character joueur 2
     "player2_rank": (0.892, 0.82, 0.085, 0.09),  # Zone rank joueur 2
     "player2_flag": (0.652, 0.84, 0.028, 0.034),  # Zone drapeau joueur 2
-    "player2_name": (0.702, 0.84, 0.18, 0.038),  # Zone nom joueur 2
+    "player2_name": (0.702, 0.84, 0.10, 0.038),  # Zone nom joueur 2
 }
 
 
