@@ -1,6 +1,7 @@
 # Data files
 tmp
 metadata
+youtube-tokens.json
 
 # Python
 __pycache__/

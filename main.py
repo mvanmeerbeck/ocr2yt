@@ -13,7 +13,7 @@ GAME_ZONES = {
     "player1_rank": (0.02, 0.82, 0.085, 0.09),  # Zone rank joueur 1
     "player1_flag": (0.12, 0.84, 0.028, 0.034),  # Zone drapeau joueur 1
     "player1_name": (0.17, 0.84, 0.10, 0.038),  # Zone nom joueur 1
-    "player1_control": (0.28, 0.84, 0.08, 0.038),  # Zone control joueur 1
+    "player1_control": (0.028, 0.773, 0.021, 0.027),  # Zone control joueur 1
     "player1_mr": (0.0124, 0.915, 0.031, 0.032),  # Zone master rank joueur 1
     "player1_lp": (0.064, 0.915, 0.042, 0.032),  # Zone league points joueur 1
     # Zones pour le joueur 2 (droite) - coordonnées en pourcentage
@@ -21,7 +21,7 @@ GAME_ZONES = {
     "player2_rank": (0.892, 0.82, 0.085, 0.09),  # Zone rank joueur 2
     "player2_flag": (0.652, 0.84, 0.028, 0.034),  # Zone drapeau joueur 2
     "player2_name": (0.702, 0.84, 0.10, 0.038),  # Zone nom joueur 2
-    "player2_control": (0.50, 0.84, 0.08, 0.038),  # Zone control joueur 2
+    "player2_control": (0.952, 0.773, 0.021, 0.027),  # Zone control joueur 2
     "player2_mr": (0.884, 0.915, 0.031, 0.032),  # Zone master rank joueur 2
     "player2_lp": (0.936, 0.915, 0.042, 0.032),  # Zone league points joueur 2
 }
@@ -150,7 +150,7 @@ def create_category_composites(template_categories, spacing=20):
     return category_composites
 
 
-def detect_text_with_tesseract(image_path, debug_mode=True):
+def detect_text_with_tesseract(field, image_path, debug_mode=True):
     """
     Détecte le texte dans une image en utilisant Tesseract OCR avec debug détaillé.
     
@@ -214,9 +214,16 @@ def detect_text_with_tesseract(image_path, debug_mode=True):
                 cv2.imwrite(os.path.join(debug_dir, f"{base_name}_test_{name}.png"), img_test)
         
         # Tester TOUTES les configurations sur TOUTES les images
-        configurations = [
-            ("psm7_oem1", r'--oem 1 --psm 7'), 
-        ]
+        if field in ["mr", "lp"]:
+            # Configuration pour les chiffres uniquement (MR, LP)
+            configurations = [
+                ("psm7_oem1_digits", r'--oem 1 --psm 7 -c tessedit_char_whitelist=0123456789'),
+            ]
+        else:
+            # Configuration générale (texte normal)
+            configurations = [
+                ("psm7_oem1", r'--oem 1 --psm 7'), 
+            ]
         
         results = []
         best_text = ""
@@ -277,7 +284,7 @@ def detect_text_with_tesseract(image_path, debug_mode=True):
         return f"Erreur Tesseract: {str(e)}"
 
 
-def color_based_name_detector(zone_image, zone_name, debug_dir=None):
+def color_based_name_detector(field, zone_image, zone_name, debug_dir=None):
     """
     Détecte le nom d'un joueur en utilisant la détection de couleur spécifique aux lettres.
     Adapté de generate_templates.py pour être intégré dans main.py
@@ -342,7 +349,7 @@ def color_based_name_detector(zone_image, zone_name, debug_dir=None):
         
         # Tester la détection sur le masque de couleur
         print("    Test 1: Masque de couleur")
-        detected_text_mask = detect_text_with_tesseract(mask_debug_path, debug_mode=True)
+        detected_text_mask = detect_text_with_tesseract(field, mask_debug_path, debug_mode=True)
         
         # Comparer les deux résultats
         print(f"    Masque couleur: '{detected_text_mask}'")
@@ -383,7 +390,7 @@ def color_based_name_detector(zone_image, zone_name, debug_dir=None):
         import tempfile
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
             cv2.imwrite(tmp_file.name, letter_mask)
-            detected_text = detect_text_with_tesseract(tmp_file.name)
+            detected_text = detect_text_with_tesseract(field, tmp_file.name)
             os.unlink(tmp_file.name)  # Supprimer le fichier temporaire
             return detected_text
 
@@ -510,7 +517,18 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
         # Traitement spécial pour les zones de noms, mr et lp avec détection de couleur
         if any(field in zone_name for field in ["name", "mr", "lp"]):
             print(f"    {zone_name}: Utilisation de la détection de couleur...")
-            detected_text = color_based_name_detector(zone_image, zone_name, debug_dir=str(tmp_dir))
+            
+            # Déterminer le type de champ à partir du nom de zone
+            if "name" in zone_name:
+                field_type = "name"
+            elif "mr" in zone_name:
+                field_type = "mr"
+            elif "lp" in zone_name:
+                field_type = "lp"
+            else:
+                field_type = "text"
+            
+            detected_text = color_based_name_detector(field_type, zone_image, zone_name, debug_dir=str(tmp_dir))
             
             # Stocker le résultat selon la zone
             if "player1" in zone_name:
@@ -531,7 +549,7 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
             print(f"    {zone_name}: '{detected_text}' (détection couleur + Tesseract)")
             continue
         
-        # Traitement normal pour les autres zones (character, rank, flag, control)
+        # Traitement normal pour les autres zones
         category = zone_to_category.get(zone_name)
         
         if not category or category not in category_composites:
@@ -673,9 +691,6 @@ def draw_zones_and_results(screenshot, zones, results):
         "rank": (255, 0, 0),  # Bleu
         "flag": (0, 0, 255),  # Rouge
         "name": (255, 255, 0),  # Cyan
-        "control": (255, 165, 0),  # Orange
-        "mr": (128, 0, 128),  # Violet
-        "lp": (255, 20, 147),  # Rose foncé
         "timer": (255, 0, 255),  # Magenta
         "round_info": (0, 255, 255),  # Jaune
     }
@@ -728,122 +743,6 @@ def draw_zones_and_results(screenshot, zones, results):
             y_offset += 10
 
     return result_image
-
-
-def confirm_and_correct_fields(results, template_categories):
-    """
-    Interface en ligne de commande pour confirmer ou corriger chaque champ détecté.
-    
-    Args:
-        results: Dictionnaire des résultats de détection
-        template_categories: Dictionnaire des templates disponibles par catégorie
-    
-    Returns:
-        Dictionnaire des résultats corrigés
-    """
-    corrected_results = {
-        "player1": {"character": None, "rank": None, "flag": None, "name": None, "control": None, "mr": None, "lp": None},
-        "player2": {"character": None, "rank": None, "flag": None, "name": None, "control": None, "mr": None, "lp": None},
-        "game_info": {"timer": None, "round": None},
-    }
-    
-    print("\n" + "="*60)
-    print("🎮 VÉRIFICATION ET CORRECTION DES CHAMPS DÉTECTÉS")
-    print("="*60)
-    print("Pour chaque champ, vous pouvez :")
-    print("  - Appuyer sur ENTRÉE pour accepter la valeur détectée")
-    print("  - Taper une nouvelle valeur pour la corriger")
-    print("  - Taper 'skip' pour ignorer ce champ")
-    print("                    - Taper 'list' pour voir les options disponibles (character, rank, flag, control)")
-    print("-"*60)
-    
-    # Créer des listes des options disponibles pour l'aide
-    available_options = {}
-    if "characters" in template_categories:
-        available_options["character"] = [name for name, _ in template_categories["characters"]]
-    if "ranks" in template_categories:
-        available_options["rank"] = [name for name, _ in template_categories["ranks"]]
-    if "flags" in template_categories:
-        available_options["flag"] = [name for name, _ in template_categories["flags"]]
-    if "controls" in template_categories:
-        available_options["control"] = [name for name, _ in template_categories["controls"]]
-    
-    # Traiter chaque joueur
-    for player_num in [1, 2]:
-        player_key = f"player{player_num}"
-        print(f"\n🔹 JOUEUR {player_num}")
-        print("-" * 20)
-        
-        # Traiter chaque champ pour ce joueur
-        for field in ["name", "character", "rank", "flag", "control", "mr", "lp"]:
-            detected_value = results.get(player_key, {}).get(field)
-            
-            # Affichage de la valeur détectée
-            if detected_value:
-                prompt = f"  {field.capitalize()}: '{detected_value}' ✅"
-            else:
-                prompt = f"  {field.capitalize()}: (non détecté) ❌"
-            
-            # Demander confirmation/correction
-            user_input = input(f"{prompt} → ").strip()
-            
-            # Traitement de la réponse
-            if user_input == "":
-                # Accepter la valeur détectée
-                corrected_results[player_key][field] = detected_value
-                print(f"    ✓ Accepté: '{detected_value}'")
-                
-            elif user_input.lower() == "skip":
-                # Ignorer ce champ
-                corrected_results[player_key][field] = None
-                print("    ⏭️  Ignoré")
-                
-            elif user_input.lower() == "list" and field in available_options:
-                # Afficher les options disponibles
-                print(f"    📋 Options disponibles pour {field}:")
-                options = available_options[field]
-                for i, option in enumerate(options[:20]):  # Limiter à 20 pour l'affichage
-                    print(f"      - {option}")
-                if len(options) > 20:
-                    print(f"      ... et {len(options) - 20} autres")
-                
-                # Redemander la valeur
-                user_input = input(f"  {field.capitalize()}: → ").strip()
-                if user_input == "":
-                    corrected_results[player_key][field] = detected_value
-                elif user_input.lower() == "skip":
-                    corrected_results[player_key][field] = None
-                else:
-                    corrected_results[player_key][field] = user_input
-                    print(f"    ✏️  Corrigé: '{user_input}'")
-                    
-            else:
-                # Valeur corrigée par l'utilisateur
-                corrected_results[player_key][field] = user_input
-                print(f"    ✏️  Corrigé: '{user_input}'")
-    
-    # Affichage du résumé final
-    print("\n" + "="*60)
-    print("📊 RÉSUMÉ FINAL")
-    print("="*60)
-    for player_num in [1, 2]:
-        player_key = f"player{player_num}"
-        print(f"\n🔹 JOUEUR {player_num}:")
-        for field in ["name", "character", "rank", "flag", "control", "mr", "lp"]:
-            value = corrected_results[player_key][field]
-            status = "✅" if value else "❌"
-            print(f"  {field.capitalize()}: {value or '(vide)'} {status}")
-    
-    # Demander confirmation finale
-    print("\n" + "-"*60)
-    confirm = input("Sauvegarder ces résultats ? (O/n) : ").strip().lower()
-    
-    if confirm == "" or confirm in ['o', 'oui', 'y', 'yes']:
-        print("✅ Résultats confirmés et sauvegardés!")
-        return corrected_results
-    else:
-        print("❌ Sauvegarde annulée.")
-        return None
 
 
 def main():
@@ -913,49 +812,30 @@ def main():
             screenshot, category_composites, threshold=0.6
         )
 
-        # Afficher les résultats initiaux
-        print("\n  === RÉSULTATS DÉTECTÉS AUTOMATIQUEMENT ===")
+        # Afficher les résultats
+        print("\n  === RÉSULTATS PAR JOUEUR ===")
         for player, info in results.items():
             if player.startswith("player"):
                 print(f"  {player.upper()}:")
                 for key, value in info.items():
                     print(f"    - {key}: {value or 'Non détecté'}")
+        
+        # Sauvegarder les métadonnées en JSON
+        save_metadata_to_json(results, zones, video_id, screenshot_info)
 
-        # Dessiner et afficher l'image avec les zones
+        # Dessiner et afficher
         result_image = draw_zones_and_results(screenshot, zones, results)
 
         window_name = f"Screenshot {i+1}: {file_path.name}"
         cv2.imshow(window_name, result_image)
-        cv2.waitKey(1)  # Petit délai pour s'assurer que l'image s'affiche
-        
-        print(f"\n📺 Image affichée: {window_name}")
-        print("Regardez l'image pour vérifier les détections...")
-        
-        # Garder l'image affichée pendant la vérification
-        # (l'utilisateur peut la consulter pendant qu'il répond aux questions)
-        
-        # Interface de confirmation/correction
-        corrected_results = confirm_and_correct_fields(results, template_categories)
-        
-        # Fermer la fenêtre d'image
+
+        print("Appuyez sur une touche pour continuer (ou 'q' pour quitter)...")
+        key = cv2.waitKey(0) & 0xFF
         cv2.destroyWindow(window_name)
-        
-        if corrected_results is not None:
-            # Sauvegarder les métadonnées corrigées en JSON
-            save_metadata_to_json(corrected_results, zones, video_id, screenshot_info)
-            
-            # Déplacer l'image vers le dossier "done"
-            done_folder = Path("./data/thumbnails/done")
-            done_folder.mkdir(parents=True, exist_ok=True)
-            
-            destination_path = done_folder / file_path.name
-            try:
-                file_path.rename(destination_path)
-                print(f"    📁 Image déplacée vers: {destination_path}")
-            except Exception as e:
-                print(f"    ⚠️  Erreur lors du déplacement: {e}")
-        else:
-            print("⏭️  Passage au fichier suivant sans sauvegarde.")
+
+        if key == ord("q"):
+            print("Arrêt demandé par l'utilisateur.")
+            break
 
     cv2.destroyAllWindows()
     print("Terminé!")
