@@ -1,0 +1,23 @@
+{
+  "id": "6d-hWgbbIws",
+  "players": [
+    {
+      "name": "Sockerpappa",
+      "character": "sagat",
+      "rank": "master",
+      "flag": "se",
+      "control": "classic",
+      "mr": "1480",
+      "lp": "83624"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1515",
+      "lp": "162549"
+    }
+  ]
+}

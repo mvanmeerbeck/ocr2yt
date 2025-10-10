@@ -1,0 +1,23 @@
+{
+  "id": "jB-0S14wfYw",
+  "players": [
+    {
+      "name": "THRILLHOUSE",
+      "character": "luke",
+      "rank": "master",
+      "flag": "uk",
+      "control": "modern",
+      "mr": "1552",
+      "lp": "132334"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1518",
+      "lp": "164293"
+    }
+  ]
+}

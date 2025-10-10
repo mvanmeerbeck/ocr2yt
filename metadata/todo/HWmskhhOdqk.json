@@ -1,0 +1,23 @@
+{
+  "id": "HWmskhhOdqk",
+  "players": [
+    {
+      "name": "Richi",
+      "character": "cammy",
+      "rank": "gm",
+      "flag": "uk",
+      "control": "classic",
+      "mr": "1707",
+      "lp": "345702"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1495",
+      "lp": "163953"
+    }
+  ]
+}

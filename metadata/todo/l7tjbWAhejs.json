@@ -1,0 +1,23 @@
+{
+  "id": "l7tjbWAhejs",
+  "players": [
+    {
+      "name": "Melenas",
+      "character": "ken",
+      "rank": "master",
+      "flag": "es",
+      "control": "classic",
+      "mr": "1411",
+      "lp": "56391"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1486",
+      "lp": "164193"
+    }
+  ]
+}

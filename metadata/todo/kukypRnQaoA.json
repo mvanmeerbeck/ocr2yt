@@ -1,0 +1,23 @@
+{
+  "id": "kukypRnQaoA",
+  "players": [
+    {
+      "name": "Zrst",
+      "character": "blanka",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1444",
+      "lp": "26640"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1463",
+      "lp": "164083"
+    }
+  ]
+}

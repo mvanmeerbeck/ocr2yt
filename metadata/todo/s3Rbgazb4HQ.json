@@ -1,0 +1,23 @@
+{
+  "id": "s3Rbgazb4HQ",
+  "players": [
+    {
+      "name": "Mike Oxlong",
+      "character": "zangief",
+      "rank": "master",
+      "flag": "uk",
+      "control": "classic",
+      "mr": "1500",
+      "lp": "132651"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1499",
+      "lp": "164123"
+    }
+  ]
+}
