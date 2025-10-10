@@ -13,11 +13,17 @@ GAME_ZONES = {
     "player1_rank": (0.02, 0.82, 0.085, 0.09),  # Zone rank joueur 1
     "player1_flag": (0.12, 0.84, 0.028, 0.034),  # Zone drapeau joueur 1
     "player1_name": (0.17, 0.84, 0.10, 0.038),  # Zone nom joueur 1
+    "player1_control": (0.28, 0.84, 0.08, 0.038),  # Zone control joueur 1
+    "player1_mr": (0.0124, 0.915, 0.031, 0.032),  # Zone master rank joueur 1
+    "player1_lp": (0.064, 0.915, 0.042, 0.032),  # Zone league points joueur 1
     # Zones pour le joueur 2 (droite) - coordonnées en pourcentage
     "player2_character": (0.72, 0.755, 0.23, 0.06),  # Zone character joueur 2
     "player2_rank": (0.892, 0.82, 0.085, 0.09),  # Zone rank joueur 2
     "player2_flag": (0.652, 0.84, 0.028, 0.034),  # Zone drapeau joueur 2
     "player2_name": (0.702, 0.84, 0.10, 0.038),  # Zone nom joueur 2
+    "player2_control": (0.50, 0.84, 0.08, 0.038),  # Zone control joueur 2
+    "player2_mr": (0.884, 0.915, 0.031, 0.032),  # Zone master rank joueur 2
+    "player2_lp": (0.936, 0.915, 0.042, 0.032),  # Zone league points joueur 2
 }
 
 
@@ -470,8 +476,8 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
     zones = extract_zones_from_screenshot(screenshot)
 
     results = {
-        "player1": {"character": None, "rank": None, "flag": None, "name": None},
-        "player2": {"character": None, "rank": None, "flag": None, "name": None},
+        "player1": {"character": None, "rank": None, "flag": None, "name": None, "control": None, "mr": None, "lp": None},
+        "player2": {"character": None, "rank": None, "flag": None, "name": None, "control": None, "mr": None, "lp": None},
         "game_info": {"timer": None, "round": None},
     }
 
@@ -483,8 +489,14 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
         "player2_rank": "ranks",
         "player1_flag": "flags",
         "player2_flag": "flags",
+        "player1_control": "controls",
+        "player2_control": "controls",
         "player1_name": "names",
         "player2_name": "names",
+        "player1_mr": "mr_text",
+        "player2_mr": "mr_text",
+        "player1_lp": "lp_text",
+        "player2_lp": "lp_text",
     }
 
     # Créer le dossier de debug
@@ -495,21 +507,31 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
     for zone_name, zone_data in zones.items():
         zone_image = zone_data["image"]
         
-        # Traitement spécial pour les zones de noms avec détection de couleur
-        if "name" in zone_name:
+        # Traitement spécial pour les zones de noms, mr et lp avec détection de couleur
+        if any(field in zone_name for field in ["name", "mr", "lp"]):
             print(f"    {zone_name}: Utilisation de la détection de couleur...")
-            detected_name = color_based_name_detector(zone_image, zone_name, debug_dir=str(tmp_dir))
+            detected_text = color_based_name_detector(zone_image, zone_name, debug_dir=str(tmp_dir))
             
             # Stocker le résultat selon la zone
             if "player1" in zone_name:
-                results["player1"]["name"] = detected_name
+                if "name" in zone_name:
+                    results["player1"]["name"] = detected_text
+                elif "mr" in zone_name:
+                    results["player1"]["mr"] = detected_text
+                elif "lp" in zone_name:
+                    results["player1"]["lp"] = detected_text
             elif "player2" in zone_name:
-                results["player2"]["name"] = detected_name
+                if "name" in zone_name:
+                    results["player2"]["name"] = detected_text
+                elif "mr" in zone_name:
+                    results["player2"]["mr"] = detected_text
+                elif "lp" in zone_name:
+                    results["player2"]["lp"] = detected_text
                 
-            print(f"    {zone_name}: '{detected_name}' (détection couleur + Tesseract)")
+            print(f"    {zone_name}: '{detected_text}' (détection couleur + Tesseract)")
             continue
         
-        # Traitement normal pour les autres zones
+        # Traitement normal pour les autres zones (character, rank, flag, control)
         category = zone_to_category.get(zone_name)
         
         if not category or category not in category_composites:
@@ -537,6 +559,8 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
                     results["player1"]["rank"] = template_name
                 elif "flag" in zone_name:
                     results["player1"]["flag"] = template_name
+                elif "control" in zone_name:
+                    results["player1"]["control"] = template_name
 
             elif "player2" in zone_name:
                 if "character" in zone_name:
@@ -545,6 +569,8 @@ def analyze_screenshot_with_zones(screenshot, category_composites, threshold=0.6
                     results["player2"]["rank"] = template_name
                 elif "flag" in zone_name:
                     results["player2"]["flag"] = template_name
+                elif "control" in zone_name:
+                    results["player2"]["control"] = template_name
 
             print(f"    {zone_name}: {template_name} (confiance: {confidence:.3f})")
         else:
@@ -602,13 +628,19 @@ def save_metadata_to_json(results, zones, video_id, screenshot_info, output_dir=
                 "name": results.get("player1", {}).get("name"),
                 "character": results.get("player1", {}).get("character"),
                 "rank": results.get("player1", {}).get("rank"),
-                "flag": results.get("player1", {}).get("flag")
+                "flag": results.get("player1", {}).get("flag"),
+                "control": results.get("player1", {}).get("control"),
+                "mr": results.get("player1", {}).get("mr"),
+                "lp": results.get("player1", {}).get("lp")
             },
             {
                 "name": results.get("player2", {}).get("name"),
                 "character": results.get("player2", {}).get("character"),
                 "rank": results.get("player2", {}).get("rank"),
-                "flag": results.get("player2", {}).get("flag")
+                "flag": results.get("player2", {}).get("flag"),
+                "control": results.get("player2", {}).get("control"),
+                "mr": results.get("player2", {}).get("mr"),
+                "lp": results.get("player2", {}).get("lp")
             }
         ]
     }
@@ -641,6 +673,9 @@ def draw_zones_and_results(screenshot, zones, results):
         "rank": (255, 0, 0),  # Bleu
         "flag": (0, 0, 255),  # Rouge
         "name": (255, 255, 0),  # Cyan
+        "control": (255, 165, 0),  # Orange
+        "mr": (128, 0, 128),  # Violet
+        "lp": (255, 20, 147),  # Rose foncé
         "timer": (255, 0, 255),  # Magenta
         "round_info": (0, 255, 255),  # Jaune
     }
@@ -707,8 +742,8 @@ def confirm_and_correct_fields(results, template_categories):
         Dictionnaire des résultats corrigés
     """
     corrected_results = {
-        "player1": {"character": None, "rank": None, "flag": None, "name": None},
-        "player2": {"character": None, "rank": None, "flag": None, "name": None},
+        "player1": {"character": None, "rank": None, "flag": None, "name": None, "control": None, "mr": None, "lp": None},
+        "player2": {"character": None, "rank": None, "flag": None, "name": None, "control": None, "mr": None, "lp": None},
         "game_info": {"timer": None, "round": None},
     }
     
@@ -719,7 +754,7 @@ def confirm_and_correct_fields(results, template_categories):
     print("  - Appuyer sur ENTRÉE pour accepter la valeur détectée")
     print("  - Taper une nouvelle valeur pour la corriger")
     print("  - Taper 'skip' pour ignorer ce champ")
-    print("  - Taper 'list' pour voir les options disponibles (character, rank, flag)")
+    print("                    - Taper 'list' pour voir les options disponibles (character, rank, flag, control)")
     print("-"*60)
     
     # Créer des listes des options disponibles pour l'aide
@@ -730,6 +765,8 @@ def confirm_and_correct_fields(results, template_categories):
         available_options["rank"] = [name for name, _ in template_categories["ranks"]]
     if "flags" in template_categories:
         available_options["flag"] = [name for name, _ in template_categories["flags"]]
+    if "controls" in template_categories:
+        available_options["control"] = [name for name, _ in template_categories["controls"]]
     
     # Traiter chaque joueur
     for player_num in [1, 2]:
@@ -738,7 +775,7 @@ def confirm_and_correct_fields(results, template_categories):
         print("-" * 20)
         
         # Traiter chaque champ pour ce joueur
-        for field in ["name", "character", "rank", "flag"]:
+        for field in ["name", "character", "rank", "flag", "control", "mr", "lp"]:
             detected_value = results.get(player_key, {}).get(field)
             
             # Affichage de la valeur détectée
@@ -792,7 +829,7 @@ def confirm_and_correct_fields(results, template_categories):
     for player_num in [1, 2]:
         player_key = f"player{player_num}"
         print(f"\n🔹 JOUEUR {player_num}:")
-        for field in ["name", "character", "rank", "flag"]:
+        for field in ["name", "character", "rank", "flag", "control", "mr", "lp"]:
             value = corrected_results[player_key][field]
             status = "✅" if value else "❌"
             print(f"  {field.capitalize()}: {value or '(vide)'} {status}")

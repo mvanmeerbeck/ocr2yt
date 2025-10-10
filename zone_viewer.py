@@ -8,11 +8,17 @@ GAME_ZONES = {
     "player1_rank": (0.02, 0.82, 0.085, 0.09),  # Zone rank joueur 1
     "player1_flag": (0.12, 0.84, 0.028, 0.034),  # Zone drapeau joueur 1
     "player1_name": (0.17, 0.84, 0.10, 0.038),  # Zone nom joueur 1
+    "player1_control": (0.28, 0.84, 0.08, 0.038),  # Zone control joueur 1
+    "player1_mr": (0.0124, 0.915, 0.031, 0.032),  # Zone master rank joueur 1
+    "player1_lp": (0.064, 0.915, 0.042, 0.032),  # Zone league points joueur 1
     # Zones pour le joueur 2 (droite) - coordonnées en pourcentage
     "player2_character": (0.72, 0.755, 0.23, 0.06),  # Zone character joueur 2
     "player2_rank": (0.892, 0.82, 0.085, 0.09),  # Zone rank joueur 2
     "player2_flag": (0.652, 0.84, 0.028, 0.034),  # Zone drapeau joueur 2
     "player2_name": (0.702, 0.84, 0.10, 0.038),  # Zone nom joueur 2
+    "player2_control": (0.50, 0.84, 0.08, 0.038),  # Zone control joueur 2
+    "player2_mr": (0.884, 0.915, 0.031, 0.032),  # Zone master rank joueur 2
+    "player2_lp": (0.936, 0.915, 0.042, 0.032),  # Zone league points joueur 2
 }
 
 
@@ -39,6 +45,9 @@ def show_zones_on_image(image_path):
         "rank": (255, 0, 0),  # Bleu
         "flag": (0, 0, 255),  # Rouge
         "name": (255, 255, 0),  # Cyan
+        "control": (255, 165, 0),  # Orange
+        "mr": (128, 0, 128),  # Violet
+        "lp": (255, 20, 147),  # Rose foncé
         "timer": (255, 0, 255),  # Magenta
         "round_info": (0, 255, 255),  # Jaune
     }
@@ -100,7 +109,7 @@ def show_zones_on_image(image_path):
 def main():
 
     # Vérifier le dossier data
-    data_folder = Path("./data/thumbnails")
+    data_folder = Path("./data/thumbnails/todo")
     if not data_folder.exists():
         print(f"Erreur: Le dossier '{data_folder}' n'existe pas.")
         print("Créez le dossier 'data' et ajoutez-y vos screenshots.")
