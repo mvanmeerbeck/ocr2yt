@@ -811,7 +811,7 @@ def confirm_and_correct_fields(results, template_categories):
 
 def main():
     # Chemins des dossiers
-    data_folder = Path("./data/thumbnails")
+    data_folder = Path("./data/thumbnails/todo")
     template_base_folder = Path("./assets/templates")
 
     # Vérifications
@@ -906,6 +906,17 @@ def main():
         if corrected_results is not None:
             # Sauvegarder les métadonnées corrigées en JSON
             save_metadata_to_json(corrected_results, zones, video_id, screenshot_info)
+            
+            # Déplacer l'image vers le dossier "done"
+            done_folder = Path("./data/thumbnails/done")
+            done_folder.mkdir(parents=True, exist_ok=True)
+            
+            destination_path = done_folder / file_path.name
+            try:
+                file_path.rename(destination_path)
+                print(f"    📁 Image déplacée vers: {destination_path}")
+            except Exception as e:
+                print(f"    ⚠️  Erreur lors du déplacement: {e}")
         else:
             print("⏭️  Passage au fichier suivant sans sauvegarde.")
 
