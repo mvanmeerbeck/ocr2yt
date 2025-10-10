@@ -217,7 +217,7 @@ def detect_text_with_tesseract(field, image_path, debug_mode=True):
         if field in ["mr", "lp"]:
             # Configuration pour les chiffres uniquement (MR, LP)
             configurations = [
-                ("psm7_oem1_digits", r'--oem 1 --psm 7 -c tessedit_char_whitelist=0123456789'),
+                ("psm7_oem1_digits", r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789'),
             ]
         else:
             # Configuration générale (texte normal)
@@ -745,6 +745,122 @@ def draw_zones_and_results(screenshot, zones, results):
     return result_image
 
 
+def confirm_and_correct_fields(results, template_categories):
+    """
+    Interface en ligne de commande pour confirmer ou corriger chaque champ détecté.
+    
+    Args:
+        results: Dictionnaire des résultats de détection
+        template_categories: Dictionnaire des templates disponibles par catégorie
+    
+    Returns:
+        Dictionnaire des résultats corrigés ou None si annulé
+    """
+    corrected_results = {
+        "player1": {"character": None, "rank": None, "flag": None, "name": None, "control": None, "mr": None, "lp": None},
+        "player2": {"character": None, "rank": None, "flag": None, "name": None, "control": None, "mr": None, "lp": None},
+        "game_info": {"timer": None, "round": None},
+    }
+    
+    print("\n" + "="*60)
+    print("🎮 VÉRIFICATION ET CORRECTION DES CHAMPS DÉTECTÉS")
+    print("="*60)
+    print("Pour chaque champ, vous pouvez :")
+    print("  - Appuyer sur ENTRÉE pour accepter la valeur détectée")
+    print("  - Taper une nouvelle valeur pour la corriger")
+    print("  - Taper 'skip' pour ignorer ce champ")
+    print("  - Taper 'list' pour voir les options disponibles (character, rank, flag, control)")
+    print("-"*60)
+    
+    # Créer des listes des options disponibles pour l'aide
+    available_options = {}
+    if "characters" in template_categories:
+        available_options["character"] = [name for name, _ in template_categories["characters"]]
+    if "ranks" in template_categories:
+        available_options["rank"] = [name for name, _ in template_categories["ranks"]]
+    if "flags" in template_categories:
+        available_options["flag"] = [name for name, _ in template_categories["flags"]]
+    if "controls" in template_categories:
+        available_options["control"] = [name for name, _ in template_categories["controls"]]
+    
+    # Traiter chaque joueur
+    for player_num in [1, 2]:
+        player_key = f"player{player_num}"
+        print(f"\n🔹 JOUEUR {player_num}")
+        print("-" * 20)
+        
+        # Traiter chaque champ pour ce joueur
+        for field in ["name", "character", "rank", "flag", "control", "mr", "lp"]:
+            detected_value = results.get(player_key, {}).get(field)
+            
+            # Affichage de la valeur détectée
+            if detected_value:
+                prompt = f"  {field.capitalize()}: '{detected_value}' ✅"
+            else:
+                prompt = f"  {field.capitalize()}: (non détecté) ❌"
+            
+            # Demander confirmation/correction
+            user_input = input(f"{prompt} → ").strip()
+            
+            # Traitement de la réponse
+            if user_input == "":
+                # Accepter la valeur détectée
+                corrected_results[player_key][field] = detected_value
+                print(f"    ✓ Accepté: '{detected_value}'")
+                
+            elif user_input.lower() == "skip":
+                # Ignorer ce champ
+                corrected_results[player_key][field] = None
+                print("    ⏭️  Ignoré")
+                
+            elif user_input.lower() == "list" and field in available_options:
+                # Afficher les options disponibles
+                print(f"    📋 Options disponibles pour {field}:")
+                options = available_options[field]
+                for i, option in enumerate(options[:20]):  # Limiter à 20 pour l'affichage
+                    print(f"      - {option}")
+                if len(options) > 20:
+                    print(f"      ... et {len(options) - 20} autres")
+                
+                # Redemander la valeur
+                user_input = input(f"  {field.capitalize()}: → ").strip()
+                if user_input == "":
+                    corrected_results[player_key][field] = detected_value
+                elif user_input.lower() == "skip":
+                    corrected_results[player_key][field] = None
+                else:
+                    corrected_results[player_key][field] = user_input
+                    print(f"    ✏️  Corrigé: '{user_input}'")
+                    
+            else:
+                # Valeur corrigée par l'utilisateur
+                corrected_results[player_key][field] = user_input
+                print(f"    ✏️  Corrigé: '{user_input}'")
+    
+    # Affichage du résumé final
+    print("\n" + "="*60)
+    print("📊 RÉSUMÉ FINAL")
+    print("="*60)
+    for player_num in [1, 2]:
+        player_key = f"player{player_num}"
+        print(f"\n🔹 JOUEUR {player_num}:")
+        for field in ["name", "character", "rank", "flag", "control", "mr", "lp"]:
+            value = corrected_results[player_key][field]
+            status = "✅" if value else "❌"
+            print(f"  {field.capitalize()}: {value or '(vide)'} {status}")
+    
+    # Demander confirmation finale
+    print("\n" + "-"*60)
+    confirm = input("Sauvegarder ces résultats ? (O/n) : ").strip().lower()
+    
+    if confirm == "" or confirm in ['o', 'oui', 'y', 'yes']:
+        print("✅ Résultats confirmés et sauvegardés!")
+        return corrected_results
+    else:
+        print("❌ Sauvegarde annulée.")
+        return None
+
+
 def main():
     # Chemins des dossiers
     data_folder = Path("./data/thumbnails/todo")
@@ -812,30 +928,52 @@ def main():
             screenshot, category_composites, threshold=0.6
         )
 
-        # Afficher les résultats
-        print("\n  === RÉSULTATS PAR JOUEUR ===")
+        # Afficher les résultats initiaux
+        print("\n  === RÉSULTATS DÉTECTÉS AUTOMATIQUEMENT ===")
         for player, info in results.items():
             if player.startswith("player"):
                 print(f"  {player.upper()}:")
                 for key, value in info.items():
                     print(f"    - {key}: {value or 'Non détecté'}")
-        
-        # Sauvegarder les métadonnées en JSON
-        save_metadata_to_json(results, zones, video_id, screenshot_info)
 
-        # Dessiner et afficher
+        # Dessiner et afficher l'image avec les zones
         result_image = draw_zones_and_results(screenshot, zones, results)
 
         window_name = f"Screenshot {i+1}: {file_path.name}"
         cv2.imshow(window_name, result_image)
-
-        print("Appuyez sur une touche pour continuer (ou 'q' pour quitter)...")
-        key = cv2.waitKey(0) & 0xFF
+        cv2.waitKey(1)  # Petit délai pour s'assurer que l'image s'affiche
+        
+        print(f"\n📺 Image affichée: {window_name}")
+        print("Regardez l'image pour vérifier les détections...")
+        
+        # Interface de confirmation/correction
+        corrected_results = confirm_and_correct_fields(results, template_categories)
+        
+        # Fermer la fenêtre d'image
         cv2.destroyWindow(window_name)
-
-        if key == ord("q"):
-            print("Arrêt demandé par l'utilisateur.")
-            break
+        
+        if corrected_results is not None:
+            # Sauvegarder les métadonnées corrigées en JSON
+            save_metadata_to_json(corrected_results, zones, video_id, screenshot_info)
+            
+            # Déplacer l'image vers le dossier "done"
+            done_folder = Path("./data/thumbnails/done")
+            done_folder.mkdir(parents=True, exist_ok=True)
+            
+            destination_path = done_folder / file_path.name
+            try:
+                file_path.rename(destination_path)
+                print(f"    📁 Image déplacée vers: {destination_path}")
+            except Exception as e:
+                print(f"    ⚠️  Erreur lors du déplacement: {e}")
+        else:
+            print("⏭️  Passage au fichier suivant sans sauvegarde.")
+            
+            # Demander si on veut continuer ou arrêter
+            continue_processing = input("\nContinuer avec le fichier suivant ? (O/n) : ").strip().lower()
+            if continue_processing in ['n', 'no', 'non']:
+                print("Arrêt demandé par l'utilisateur.")
+                break
 
     cv2.destroyAllWindows()
     print("Terminé!")

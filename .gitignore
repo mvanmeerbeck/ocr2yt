@@ -2,6 +2,7 @@
 tmp
 metadata
 youtube-tokens.json
+.env
 
 # Python
 __pycache__/
