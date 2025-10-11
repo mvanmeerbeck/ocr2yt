@@ -31,6 +31,7 @@ class YouTubeMetadataUpdater:
         """Initialise le client YouTube API avec les credentials"""
         self.credentials_file = credentials_file
         self.youtube = None
+        self.playlist_cache = {}  # Cache pour éviter de rechercher les mêmes playlists
         self._load_credentials()
     
     def _load_credentials(self):
@@ -90,6 +91,118 @@ class YouTubeMetadataUpdater:
             logger.info(f"Token rafraîchi sauvegardé dans {self.credentials_file}")
         except Exception as e:
             logger.warning(f"Impossible de sauvegarder le token rafraîchi: {e}")
+    
+    def _search_playlist(self, playlist_title):
+        """Recherche une playlist par son titre"""
+        try:
+            # Vérifier le cache d'abord
+            if playlist_title in self.playlist_cache:
+                return self.playlist_cache[playlist_title]
+            
+            # Rechercher dans les playlists du channel
+            request = self.youtube.playlists().list(
+                part='snippet',
+                mine=True,
+                maxResults=50
+            )
+            
+            while request:
+                response = request.execute()
+                
+                for playlist in response['items']:
+                    title = playlist['snippet']['title']
+                    playlist_id = playlist['id']
+                    
+                    # Mettre en cache
+                    self.playlist_cache[title] = playlist_id
+                    
+                    # Vérifier si c'est la playlist recherchée
+                    if title.lower() == playlist_title.lower():
+                        logger.info(f"📋 Playlist trouvée: '{playlist_title}' (ID: {playlist_id})")
+                        return playlist_id
+                
+                # Page suivante
+                request = self.youtube.playlists().list_next(request, response)
+            
+            logger.info(f"📋 Playlist '{playlist_title}' non trouvée")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de la recherche de playlist '{playlist_title}': {e}")
+            return None
+    
+    def _create_playlist(self, title, description=""):
+        """Crée une nouvelle playlist"""
+        try:
+            body = {
+                'snippet': {
+                    'title': title,
+                    'description': description,
+                    'defaultLanguage': 'fr'
+                },
+                'status': {
+                    'privacyStatus': 'public'
+                }
+            }
+            
+            response = self.youtube.playlists().insert(
+                part='snippet,status',
+                body=body
+            ).execute()
+            
+            playlist_id = response['id']
+            
+            # Mettre en cache
+            self.playlist_cache[title] = playlist_id
+            
+            logger.info(f"✅ Playlist créée: '{title}' (ID: {playlist_id})")
+            return playlist_id
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de la création de playlist '{title}': {e}")
+            return None
+    
+    def _get_or_create_playlist(self, title, description=""):
+        """Récupère une playlist ou la crée si elle n'existe pas"""
+        playlist_id = self._search_playlist(title)
+        
+        if playlist_id:
+            return playlist_id
+        else:
+            logger.info(f"🔄 Création de la playlist '{title}'...")
+            return self._create_playlist(title, description)
+    
+    def _add_video_to_playlist(self, video_id, playlist_id):
+        """Ajoute une vidéo à une playlist"""
+        try:
+            body = {
+                'snippet': {
+                    'playlistId': playlist_id,
+                    'resourceId': {
+                        'kind': 'youtube#video',
+                        'videoId': video_id
+                    }
+                }
+            }
+            
+            self.youtube.playlistItems().insert(
+                part='snippet',
+                body=body
+            ).execute()
+            
+            logger.info(f"📋 Vidéo {video_id} ajoutée à la playlist {playlist_id}")
+            return True
+            
+        except HttpError as e:
+            if 'videoAlreadyInPlaylist' in str(e):
+                logger.info(f"📋 Vidéo {video_id} déjà dans la playlist")
+                return True
+            else:
+                logger.error(f"❌ Erreur lors de l'ajout à la playlist: {e}")
+                return False
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de l'ajout à la playlist: {e}")
+            return False
     
     def _get_character_display_name(self, character):
         """Convertit le nom de personnage en format d'affichage"""
@@ -183,6 +296,46 @@ class YouTubeMetadataUpdater:
             if char_hashtag not in hashtags:
                 hashtags.append(char_hashtag)
         
+        # Ajouter hashtag Modern si détecté
+        modern_detected = False
+        for player in [p1, p2]:
+            name = player.get('name', '').lower()
+            if 'modern' in name or player.get('control_type') == 'modern':
+                modern_detected = True
+                break
+        
+        if modern_detected and "#sf6modern" not in hashtags:
+            hashtags.append("#sf6modern")
+        
+        # Ajouter hashtags des rangs
+        ranks = []
+        for player in [p1, p2]:
+            rank = player.get('rank', '').lower()
+            if rank:
+                ranks.append(rank)
+        
+        if ranks:
+            # Hiérarchie des rangs pour prendre le plus élevé
+            rank_hierarchy = ['legend', 'um', 'gm', 'master']
+            
+            highest_rank = None
+            for rank in rank_hierarchy:
+                if rank in ranks:
+                    highest_rank = rank
+                    break
+            
+            if highest_rank:
+                # Convertir en hashtag
+                if highest_rank == 'um':
+                    rank_hashtag = "#sf6ultimatemaster"
+                elif highest_rank == 'gm':
+                    rank_hashtag = "#sf6grandmaster"
+                else:
+                    rank_hashtag = f"#sf6{highest_rank}"
+                
+                if rank_hashtag not in hashtags:
+                    hashtags.append(rank_hashtag)
+        
         # Assembler la description finale
         description_parts = [
             main_description,
@@ -191,6 +344,79 @@ class YouTubeMetadataUpdater:
         ]
         
         return "\n".join(description_parts)
+    
+    def _manage_playlists(self, video_id, players_data):
+        """Gère l'ajout de la vidéo aux playlists appropriées"""
+        playlists_added = []
+        
+        try:
+            # Récupérer les informations des joueurs
+            p1 = players_data[0]
+            p2 = players_data[1]
+            
+            # 1. Playlists par personnage
+            for player in [p1, p2]:
+                character = player.get('character', '').lower()
+                if character:
+                    char_display = self._get_character_display_name(character)
+                    playlist_title = f"{char_display} | Street Fighter 6"
+                    playlist_description = f"Toutes les vidéos avec {char_display} dans Street Fighter 6"
+                    
+                    playlist_id = self._get_or_create_playlist(playlist_title, playlist_description)
+                    if playlist_id and self._add_video_to_playlist(video_id, playlist_id):
+                        playlists_added.append(playlist_title)
+            
+            # 2. Playlist Modern (si au moins un joueur utilise Modern)
+            # On peut détecter Modern si le nom contient certains indicateurs
+            # Ou ajouter cette info dans les données JSON
+            modern_detected = False
+            for player in [p1, p2]:
+                name = player.get('name', '').lower()
+                # Vous pouvez ajuster ces critères selon vos besoins
+                if 'modern' in name or player.get('control_type') == 'modern':
+                    modern_detected = True
+                    break
+            
+            if modern_detected:
+                playlist_title = "Modern | Street Fighter 6"
+                playlist_description = "Matchs Street Fighter 6 avec contrôles Modern"
+                playlist_id = self._get_or_create_playlist(playlist_title, playlist_description)
+                if playlist_id and self._add_video_to_playlist(video_id, playlist_id):
+                    playlists_added.append(playlist_title)
+            
+            # 3. Playlists par rang (basé sur le rang le plus élevé)
+            ranks = []
+            for player in [p1, p2]:
+                rank = player.get('rank', '').lower()
+                if rank:
+                    ranks.append(rank)
+            
+            if ranks:
+                # Hiérarchie des rangs (du plus élevé au plus bas)
+                rank_hierarchy = ['legend', 'um', 'gm', 'master']
+                
+                highest_rank = None
+                for rank in rank_hierarchy:
+                    if rank in ranks:
+                        highest_rank = rank
+                        break
+                
+                if highest_rank:
+                    rank_display = self._get_rank_display_name(highest_rank)
+                    playlist_title = f"{rank_display} | Street Fighter 6"
+                    playlist_description = f"Matchs Street Fighter 6 de niveau {rank_display}"
+                    playlist_id = self._get_or_create_playlist(playlist_title, playlist_description)
+                    if playlist_id and self._add_video_to_playlist(video_id, playlist_id):
+                        playlists_added.append(playlist_title)
+            
+            if playlists_added:
+                logger.info(f"📋 Vidéo ajoutée aux playlists: {', '.join(playlists_added)}")
+            
+            return playlists_added
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de la gestion des playlists pour {video_id}: {e}")
+            return []
     
     def update_video_metadata(self, video_id, players_data):
         """Met à jour les métadonnées d'une vidéo YouTube
@@ -223,6 +449,9 @@ class YouTubeMetadataUpdater:
             ).execute()
             
             logger.info(video_update)
+            
+            # Gérer les playlists après la mise à jour réussie
+            self._manage_playlists(video_id, players_data)
             
             return 'success'
             
