@@ -258,7 +258,11 @@ class YouTubeMetadataUpdater:
             'kr': '🇰🇷',
             'de': '🇩🇪',
             'pl': '🇵🇱',
-            'ch': '🇨🇭'
+            'ch': '🇨🇭',
+            'jm': '🇯🇲',
+            'dk': '🇩🇰',
+            'it': '🇮🇹',
+            'be': '🇧🇪',
         }
         return country_names.get(flag.lower(), flag.upper())
     

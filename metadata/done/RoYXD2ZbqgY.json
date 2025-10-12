@@ -1,0 +1,23 @@
+{
+  "id": "RoYXD2ZbqgY",
+  "players": [
+    {
+      "name": "Tekky",
+      "character": "cammy",
+      "rank": "master",
+      "flag": "jm",
+      "control": "classic",
+      "mr": "1504",
+      "lp": "194690"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1485",
+      "lp": "165949"
+    }
+  ]
+}
