@@ -240,6 +240,7 @@ class YouTubeMetadataUpdater:
         """Convertit le rang en format d'affichage"""
         rank_names = {
             'master': 'Master',
+            'hm': 'High Master',
             'gm': 'Grand Master',
             'um': 'Ultimate Master',
             'legend': 'Legend',
@@ -263,6 +264,10 @@ class YouTubeMetadataUpdater:
             'dk': '🇩🇰',
             'it': '🇮🇹',
             'be': '🇧🇪',
+            'no': '🇳🇴',
+            'fi': '🇫🇮',
+            'lc': '🇱🇨',
+            've': '🇻🇪',
         }
         return country_names.get(flag.lower(), flag.upper())
     
@@ -320,7 +325,7 @@ class YouTubeMetadataUpdater:
         
         if ranks:
             # Hiérarchie des rangs pour prendre le plus élevé
-            rank_hierarchy = ['legend', 'um', 'gm', 'master']
+            rank_hierarchy = ['legend', 'um', 'gm', 'hm', 'master']
             
             highest_rank = None
             for rank in rank_hierarchy:
@@ -334,6 +339,8 @@ class YouTubeMetadataUpdater:
                     rank_hashtag = "#sf6ultimatemaster"
                 elif highest_rank == 'gm':
                     rank_hashtag = "#sf6grandmaster"
+                elif highest_rank == 'hm':
+                    rank_hashtag = "#sf6highmaster"
                 else:
                     rank_hashtag = f"#sf6{highest_rank}"
                 

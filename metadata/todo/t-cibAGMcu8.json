@@ -1,0 +1,23 @@
+{
+  "id": "t-cibAGMcu8",
+  "players": [
+    {
+      "name": "Maverick",
+      "character": "ken",
+      "rank": "hm",
+      "flag": "it",
+      "control": "classic",
+      "mr": "1614",
+      "lp": "258202"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1509",
+      "lp": "166699"
+    }
+  ]
+}
