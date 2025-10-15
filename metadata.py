@@ -162,6 +162,33 @@ class YouTubeMetadataUpdater:
             logger.error(f"❌ Erreur lors de la création de playlist '{title}': {e}")
             return None
     
+    def _is_video_in_playlist(self, video_id, playlist_id):
+        """Vérifie si une vidéo est déjà dans une playlist"""
+        try:
+            request = self.youtube.playlistItems().list(
+                part='contentDetails',
+                playlistId=playlist_id,
+                maxResults=50
+            )
+            
+            while request:
+                response = request.execute()
+                
+                for item in response['items']:
+                    if item['contentDetails']['videoId'] == video_id:
+                        return True
+                
+                # Page suivante si elle existe
+                request = self.youtube.playlistItems().list_next(request, response)
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de la vérification de présence dans playlist {playlist_id}: {e}")
+            # En cas d'erreur, on suppose que la vidéo n'est pas dans la playlist
+            # pour éviter de bloquer le processus
+            return False
+    
     def _get_or_create_playlist(self, title, description=""):
         """Récupère une playlist ou la crée si elle n'existe pas"""
         playlist_id = self._search_playlist(title)
@@ -173,8 +200,14 @@ class YouTubeMetadataUpdater:
             return self._create_playlist(title, description)
     
     def _add_video_to_playlist(self, video_id, playlist_id):
-        """Ajoute une vidéo à une playlist"""
+        """Ajoute une vidéo à une playlist (avec vérification anti-doublons)"""
         try:
+            # Vérifier d'abord si la vidéo est déjà dans la playlist
+            if self._is_video_in_playlist(video_id, playlist_id):
+                logger.info(f"📋 Vidéo {video_id} déjà dans la playlist {playlist_id}")
+                return True
+            
+            # Si pas de doublon, ajouter la vidéo
             body = {
                 'snippet': {
                     'playlistId': playlist_id,
@@ -194,11 +227,12 @@ class YouTubeMetadataUpdater:
             return True
             
         except HttpError as e:
-            if 'videoAlreadyInPlaylist' in str(e):
-                logger.info(f"📋 Vidéo {video_id} déjà dans la playlist")
+            # Garder la gestion d'exception au cas où
+            if 'videoAlreadyInPlaylist' in str(e) or 'already exists' in str(e).lower():
+                logger.info(f"📋 Vidéo {video_id} déjà dans la playlist (détecté par API)")
                 return True
             else:
-                logger.error(f"❌ Erreur lors de l'ajout à la playlist: {e}")
+                logger.error(f"❌ Erreur HTTP lors de l'ajout à la playlist: {e}")
                 return False
         except Exception as e:
             logger.error(f"❌ Erreur lors de l'ajout à la playlist: {e}")
