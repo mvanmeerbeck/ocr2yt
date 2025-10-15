@@ -1,0 +1,23 @@
+{
+  "id": "CnQo4UvsATc",
+  "players": [
+    {
+      "name": "Pitsos",
+      "character": "viper",
+      "rank": "master",
+      "flag": "gr",
+      "control": "classic",
+      "mr": "1550",
+      "lp": "37120"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1571",
+      "lp": "168694"
+    }
+  ]
+}

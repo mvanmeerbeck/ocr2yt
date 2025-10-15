@@ -7,7 +7,7 @@ GAME_ZONES = {
     "player1_character": (0.05, 0.755, 0.23, 0.06),  # Zone character joueur 1
     "player1_rank": (0.02, 0.82, 0.085, 0.09),  # Zone rank joueur 1
     "player1_flag": (0.12, 0.84, 0.028, 0.034),  # Zone drapeau joueur 1
-    "player1_name": (0.17, 0.84, 0.10, 0.038),  # Zone nom joueur 1
+    "player1_name": (0.17, 0.84, 0.12, 0.038),  # Zone nom joueur 1
     "player1_control": (0.028, 0.773, 0.021, 0.027),  # Zone control joueur 1
     "player1_mr": (0.0124, 0.915, 0.031, 0.032),  # Zone master rank joueur 1
     "player1_lp": (0.064, 0.915, 0.042, 0.032),  # Zone league points joueur 1
@@ -15,7 +15,7 @@ GAME_ZONES = {
     "player2_character": (0.72, 0.755, 0.23, 0.06),  # Zone character joueur 2
     "player2_rank": (0.892, 0.82, 0.085, 0.09),  # Zone rank joueur 2
     "player2_flag": (0.652, 0.84, 0.028, 0.034),  # Zone drapeau joueur 2
-    "player2_name": (0.702, 0.84, 0.10, 0.038),  # Zone nom joueur 2
+    "player2_name": (0.702, 0.84, 0.12, 0.038),  # Zone nom joueur 2
     "player2_control": (0.952, 0.773, 0.021, 0.027),  # Zone control joueur 2
     "player2_mr": (0.884, 0.915, 0.031, 0.032),  # Zone master rank joueur 2
     "player2_lp": (0.936, 0.915, 0.042, 0.032),  # Zone league points joueur 2

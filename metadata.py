@@ -233,6 +233,7 @@ class YouTubeMetadataUpdater:
             'mai': 'Mai',
             'elena': 'Elena',
             'bison': 'M.Bison',
+            'viper': 'C.Viper',
         }
         return character_names.get(character.lower(), character.title())
     
@@ -268,6 +269,9 @@ class YouTubeMetadataUpdater:
             'fi': '🇫🇮',
             'lc': '🇱🇨',
             've': '🇻🇪',
+            'us': '🇺🇸',
+            'gr': '🇬🇷',
+            'nl': '🇳🇱',
         }
         return country_names.get(flag.lower(), flag.upper())
     
@@ -527,7 +531,7 @@ class YouTubeMetadataUpdater:
                         os.makedirs(done_directory)
                     
                     done_path = os.path.join(done_directory, json_file)
-                    # os.rename(file_path, done_path)
+                    os.rename(file_path, done_path)
                     logger.info(f"📁 Fichier déplacé vers: {done_path}")
                     
                 elif result == 'forbidden':
