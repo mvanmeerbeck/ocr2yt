@@ -309,6 +309,33 @@ class YouTubeMetadataUpdater:
         }
         return country_names.get(flag.lower(), flag.upper())
     
+    def _get_country_name(self, flag):
+        """Convertit le code pays en nom complet du pays"""
+        country_names = {
+            'fr': 'France',
+            'es': 'Espagne',
+            'uk': 'Royaume-Uni', 
+            'se': 'Suède',
+            'ru': 'Russie',
+            'sf': 'International',
+            'kr': 'Corée du Sud',
+            'de': 'Allemagne',
+            'pl': 'Pologne',
+            'ch': 'Suisse',
+            'jm': 'Jamaïque',
+            'dk': 'Danemark',
+            'it': 'Italie',
+            'be': 'Belgique',
+            'no': 'Norvège',
+            'fi': 'Finlande',
+            'lc': 'Sainte-Lucie',
+            've': 'Venezuela',
+            'us': 'États-Unis',
+            'gr': 'Grèce',
+            'nl': 'Pays-Bas',
+        }
+        return country_names.get(flag.lower(), None)
+    
     def _generate_title(self, players_data):
         """Génère un titre basé sur les données des joueurs"""
         p1 = players_data[0]
@@ -433,7 +460,30 @@ class YouTubeMetadataUpdater:
                 if playlist_id and self._add_video_to_playlist(video_id, playlist_id):
                     playlists_added.append(playlist_title)
             
-            # 3. Playlists par rang (basé sur le rang le plus élevé)
+            # 3. Playlists par pays
+            countries = []
+            for player in [p1, p2]:
+                flag = player.get('flag', '').lower()
+                if flag:
+                    countries.append(flag)
+            
+            # Supprimer les doublons tout en gardant l'ordre
+            unique_countries = []
+            for country in countries:
+                if country not in unique_countries:
+                    unique_countries.append(country)
+            
+            for country in unique_countries:
+                country_flag = self._get_flag_display_name(country)
+                country_name = self._get_country_name(country)
+                if country_name:  # Seulement si on a un nom de pays défini
+                    playlist_title = f"{country_flag} {country_name} | Street Fighter 6"
+                    playlist_description = f"Matchs Street Fighter 6 avec des joueurs de {country_name}"
+                    playlist_id = self._get_or_create_playlist(playlist_title, playlist_description)
+                    if playlist_id and self._add_video_to_playlist(video_id, playlist_id):
+                        playlists_added.append(playlist_title)
+            
+            # 4. Playlists par rang (basé sur le rang le plus élevé)
             ranks = []
             for player in [p1, p2]:
                 rank = player.get('rank', '').lower()
