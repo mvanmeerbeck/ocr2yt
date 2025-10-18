@@ -1,0 +1,23 @@
+{
+  "id": "4VKCJYBdSEE",
+  "players": [
+    {
+      "name": "Patoismo",
+      "character": "ryu",
+      "rank": "master",
+      "flag": "pt",
+      "control": "classic",
+      "mr": "1471",
+      "lp": "30355"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1463",
+      "lp": "169934"
+    }
+  ]
+}

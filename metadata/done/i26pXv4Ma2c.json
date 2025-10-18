@@ -1,0 +1,23 @@
+{
+  "id": "i26pXv4Ma2c",
+  "players": [
+    {
+      "name": "RIOU",
+      "character": "ryu",
+      "rank": "master",
+      "flag": "sf",
+      "control": "classic",
+      "mr": "1469",
+      "lp": "261301"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1448",
+      "lp": "169854"
+    }
+  ]
+}

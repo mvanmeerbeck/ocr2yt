@@ -1,0 +1,23 @@
+{
+  "id": "_VVmFPKoDhY",
+  "players": [
+    {
+      "name": "GROTTO",
+      "character": "terry",
+      "rank": "master",
+      "flag": "ro",
+      "control": "classic",
+      "mr": "1477",
+      "lp": "112060"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1464",
+      "lp": "170354"
+    }
+  ]
+}
