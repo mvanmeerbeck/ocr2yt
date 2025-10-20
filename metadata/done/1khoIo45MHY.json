@@ -1,0 +1,23 @@
+{
+  "id": "1khoIo45MHY",
+  "players": [
+    {
+      "name": "Guillermijas",
+      "character": "guile",
+      "rank": "master",
+      "flag": "es",
+      "control": "classic",
+      "mr": "1551",
+      "lp": "258072"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1514",
+      "lp": "171964"
+    }
+  ]
+}
