@@ -1,0 +1,23 @@
+{
+  "id": "OGPnVVZNbWY",
+  "players": [
+    {
+      "name": "Furko",
+      "character": "guile",
+      "rank": "master",
+      "flag": "nl",
+      "control": "classic",
+      "mr": "1481",
+      "lp": "71793"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1461",
+      "lp": "172310"
+    }
+  ]
+}

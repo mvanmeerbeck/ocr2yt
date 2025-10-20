@@ -1,0 +1,23 @@
+{
+  "id": "KaKSkSm50uU",
+  "players": [
+    {
+      "name": "Jackhan",
+      "character": "ryu",
+      "rank": "master",
+      "flag": "sf",
+      "control": "classic",
+      "mr": "1524",
+      "lp": "197198"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1469",
+      "lp": "172380"
+    }
+  ]
+}

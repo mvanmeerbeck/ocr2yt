@@ -1,0 +1,23 @@
+{
+  "id": "lNKCft9osHE",
+  "players": [
+    {
+      "name": "Abdel 1",
+      "character": "ken",
+      "rank": "master",
+      "flag": "dz",
+      "control": "classic",
+      "mr": "1426",
+      "lp": "66627"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1456",
+      "lp": "172220"
+    }
+  ]
+}
