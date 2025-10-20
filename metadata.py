@@ -394,7 +394,7 @@ class YouTubeMetadataUpdater:
         
         if ranks:
             # Hiérarchie des rangs pour prendre le plus élevé
-            rank_hierarchy = ['legend', 'um', 'gm', 'hm', 'master']
+            rank_hierarchy = ['legend', 'um', 'gm', 'hm', 'master', 'diamond', 'platinum', 'gold', 'silver', 'bronze', 'newchallenger']
             
             highest_rank = None
             for rank in rank_hierarchy:
@@ -496,7 +496,7 @@ class YouTubeMetadataUpdater:
             
             if ranks:
                 # Hiérarchie des rangs (du plus élevé au plus bas)
-                rank_hierarchy = ['legend', 'um', 'gm', 'master']
+                rank_hierarchy = ['legend', 'um', 'gm', 'hm', 'master', 'diamond', 'platinum', 'gold', 'silver', 'bronze', 'newchallenger']
                 
                 highest_rank = None
                 for rank in rank_hierarchy:

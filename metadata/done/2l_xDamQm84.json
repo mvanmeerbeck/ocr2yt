@@ -1,0 +1,23 @@
+{
+  "id": "2l_xDamQm84",
+  "players": [
+    {
+      "name": "Mister Crimson",
+      "character": "viper",
+      "rank": "newchallenger",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "0",
+      "lp": "0"
+    },
+    {
+      "name": "Mukki",
+      "character": "zangief",
+      "rank": "diamond",
+      "flag": "sf",
+      "control": "classic",
+      "mr": "0",
+      "lp": "19425"
+    }
+  ]
+}
