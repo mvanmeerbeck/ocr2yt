@@ -1,0 +1,23 @@
+{
+  "id": "KQeKdg_nxHY",
+  "players": [
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1532",
+      "lp": "175754"
+    },
+    {
+      "name": "Calemor",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "nl",
+      "control": "modern",
+      "mr": "1541",
+      "lp": "190542"
+    }
+  ]
+}

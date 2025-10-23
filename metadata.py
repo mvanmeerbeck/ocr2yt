@@ -311,6 +311,9 @@ class YouTubeMetadataUpdater:
             'cv': '🇨🇻',
             'dz': '🇩🇿',
             'kh': '🇰🇭',
+            'ma': '🇲🇦',
+            'cn': '🇨🇳',
+            'do': '🇩🇴',
         }
         return country_names.get(flag.lower(), flag.upper())
     

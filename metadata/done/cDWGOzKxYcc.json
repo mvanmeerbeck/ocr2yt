@@ -1,0 +1,23 @@
+{
+  "id": "cDWGOzKxYcc",
+  "players": [
+    {
+      "name": "Cosay",
+      "character": "ryu",
+      "rank": "master",
+      "flag": "fr",
+      "control": "modern",
+      "mr": "1569",
+      "lp": "169520"
+    },
+    {
+      "name": "NicKy",
+      "character": "marisa",
+      "rank": "master",
+      "flag": "fr",
+      "control": "classic",
+      "mr": "1529",
+      "lp": "175504"
+    }
+  ]
+}
